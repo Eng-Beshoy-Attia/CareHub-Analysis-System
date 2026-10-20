@@ -808,7 +808,7 @@ const PAGES = [
   {id:"h_acc", label:"Accounts history", grp:"Historical"},
   {id:"h_fm", label:"Family medicine history", grp:"Historical"}
 ];
-PAGES.push({id:"leads", label:"Leads", grp:"Leads"},{id:"leads_trends", label:"Leads trends", grp:"Leads"},{id:"ops", label:"Case managers · charge per case", grp:"Operation"},{id:"ops_cases", label:"Cases", grp:"Operation"},{id:"ops_kpi", label:"Operational KPIs", grp:"Operation"},{id:"ops_ntl", label:"Nurse team leaders · LOS", grp:"Operation"},{id:"ops_er", label:"ER conversion", grp:"Operation"},{id:"ops_amb", label:"Ambulatory conversion", grp:"Operation"},{id:"ops_hist", label:"Charge history", grp:"Operation history"},
+PAGES.push({id:"leads", label:"Leads", grp:"Leads"},{id:"leads_trends", label:"Leads trends", grp:"Leads"},{id:"ops", label:"Case managers · charge per case", grp:"Operation"},{id:"ops_cases", label:"Cases", grp:"Operation"},{id:"ops_ch", label:"By sales channel", grp:"Operation"},{id:"ops_kpi", label:"Operational KPIs", grp:"Operation"},{id:"ops_ntl", label:"Nurse team leaders · LOS", grp:"Operation"},{id:"ops_er", label:"ER conversion", grp:"Operation"},{id:"ops_amb", label:"Ambulatory conversion", grp:"Operation"},{id:"ops_hist", label:"Charge history", grp:"Operation history"},
   {id:"hist_kpi", label:"Operational KPIs history", grp:"Operation history"},{id:"hist_conv", label:"ER & ambulatory history", grp:"Operation history"},{id:"hist_los", label:"LOS history", grp:"Operation history"},
   {id:"ia", label:"Revenue drivers", grp:"Informative analysis"},{id:"ia_funnel", label:"Leads → revenue", grp:"Informative analysis"},{id:"ia_stake", label:"Value at stake", grp:"Informative analysis"});
 PAGES.forEach(p=>{ if(!p.grp) p.grp="Commercial"; });
@@ -816,7 +816,7 @@ PAGES.forEach(p=>{ if(!p.grp) p.grp="Commercial"; });
     ["occ","Occupancy"],["occ_pat","Occupancy"],["occ_inp","Occupancy"],
     ["overview","Commercial"],["team","Commercial"],["fm","Commercial"],["accounts","Commercial"],["visits","Commercial"],["ch_rep","Commercial"],
     ["leads","Leads"],["leads_trends","Leads"],
-    ["ops_kpi","Operation","Operational KPIs"],["ops_er","Operation","ER conversion"],["ops","Operation","Case managers"],["ops_amb","Operation","Ambulatory conversion"],["ops_ntl","Operation","LOS · nurse team leaders"],["ops_cases","Operation","Cases"],
+    ["ops_kpi","Operation","Operational KPIs"],["ops_er","Operation","ER conversion"],["ops","Operation","Case managers"],["ops_amb","Operation","Ambulatory conversion"],["ops_ntl","Operation","LOS · nurse team leaders"],["ops_ch","Operation","By sales channel"],["ops_cases","Operation","Cases"],
     ["h_trends","Commercial history"],["h_team","Commercial history"],["h_acc","Commercial history"],["h_fm","Commercial history"],["ops_hist","Operation history","Case managers history"],["hist_kpi","Operation history","Operational KPIs history"],["hist_conv","Operation history","ER & ambulatory history"],["hist_los","Operation history","LOS history"],
     ["ia","Informative analysis"],["ia_funnel","Informative analysis"],["ia_stake","Informative analysis"]];
   const np=order.filter(([id])=>L[id]).map(([id,g,lab])=>({...L[id],grp:g,label:lab||L[id].label})); PAGES.length=0; PAGES.push(...np); }
@@ -836,7 +836,7 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 
 let DB = null, SOURCE = {mode:"sample", at:null, error:null};
 const state = {page:"occ", month:null, from:null, to:null, odate:null, obu:"All", olv:"All", och:"All", oq:"",
-  okm:null, okbu:"Group", hob:"All", rchF:null, rchT:null, rchA:"All", rcm:null, rcmM:null, rcmBU:"All", cmSel:null, ntlSel:null, rnm:null, rnbu:"All", rcbu:"All", rch:null, om:null, obu2:"All", ocm:"All", ogr:"All", ost:"All", oq2:"", iafrom:null, iato:null, iam:null, iareg:"All",
+  okm:null, okbu:"Group", hob:"All", rchF:null, rchT:null, rchA:"All", rcm:null, rcmM:null, rcmBU:"All", cmSel:null, ntlSel:null, chSel:null, chm:null, rnm:null, rnbu:"All", rcbu:"All", rch:null, om:null, obu2:"All", ocm:"All", ogr:"All", ost:"All", oq2:"", iafrom:null, iato:null, iam:null, iareg:"All",
   hfrom:null, hto:null, hregion:"All", hch:"All", hmetric:"Revenue", hsm:"Value", hfm:"Value", hq:"", hseg:"All", hshow:100, bu:"All", region:"All", channel:"All", rep:"All", q:"", seg:"all",
   lfrom:null, lto:null, ltf:null, ltt:null,
   lbu:"All", lch:"All", lin:"All", lclean:true, lout:"All", lreason:null, lgrp:null, lservice:"All", lq:"", lshow:100,
@@ -1129,6 +1129,11 @@ function _renderChrome(){
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("Informative analysis · ","")); return;
   }
+  if (state.page==="ops_ch"){
+    const om=opsMonths().slice().reverse(); f = `<label>Month<select data-f="chm">${om.map(x=>`<option value="${x}" ${x===(state.chm||om[0])?"selected":""}>${opsLabel(x)}</option>`).join("")}</select></label>`;
+    $("#bar").innerHTML = `<h1>${page.label}<small>Operation · charge per case and LOS by channel</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
+    renderMobile(page, page.label); return;
+  }
   if (["ops_cmr","ops_ntl","ops_er","ops_amb"].includes(state.page)){
     if (state.page==="ops_cmr"){ const om=opsMonths().slice().reverse(); f = `<label>Month<select data-f="rcmM">${om.map(x=>`<option value="${x}" ${x===(state.rcmM||om[0])?"selected":""}>${opsLabel(x)}</option>`).join("")}</select></label>` + sel("Branch","rcmBU",["All",...BU_ORDER]); }
     if (state.page==="ops_ntl"){ const nm=[...new Set((DB.Ops_NTL||[]).map(r=>r.Month))].sort().reverse(); f = `<label>Month<select data-f="rnm">${nm.map(x=>`<option value="${x}" ${x===(state.rnm||nm[0])?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label>`; }
@@ -1308,7 +1313,7 @@ function render(){
   renderChrome();
   { const n=$("#nav"), a=n&&n.querySelector('[aria-current="page"]'); if (a && (a.offsetTop < n.scrollTop || a.offsetTop+a.offsetHeight > n.scrollTop+n.clientHeight)) a.scrollIntoView({block:"nearest"}); navHint(); }
   const v = $("#view");
-  if (state.page.startsWith("ops")){ v.innerHTML = ({ops:opsPage,ops_cases:opsCases,ops_hist:opsHist,ops_kpi:opsKpiPage,ops_cmr:opsCmReport,ops_ntl:opsNtl,ops_er:opsEr,ops_amb:opsAmb})[state.page](); cardify(v); return; }
+  if (state.page.startsWith("ops")){ v.innerHTML = ({ops:opsPage,ops_cases:opsCases,ops_hist:opsHist,ops_kpi:opsKpiPage,ops_cmr:opsCmReport,ops_ntl:opsNtl,ops_er:opsEr,ops_amb:opsAmb,ops_ch:opsChannels})[state.page](); cardify(v); return; }
   if (state.page==="ch_rep"){ v.innerHTML = chReport(); cardify(v); return; }
   if (state.page.startsWith("hist_")){ v.innerHTML = ({hist_kpi:histKpi,hist_conv:histConv,hist_los:histLos})[state.page](); cardify(v); return; }
   if (state.page.startsWith("ia")){ v.innerHTML = ({ia:iaDriversPage,ia_funnel:iaFunnel,ia_stake:iaStake})[state.page](); cardify(v); return; }
@@ -2019,8 +2024,8 @@ function occINP(){
    OPERATION · charge per case (tabs: Ops_Cases, Ops_Benchmark)
    ============================================================ */
 const OPS_TABS = {Ops_Cases:["Month","BU","Case_Manager","Case","MTD_Target","Actual_Charge"], Ops_Benchmark:["Category","Benchmark"],
-  Ops_KPI:["Month","BU","KPI","Actual"], Ops_NTL:["Month","BU","Nurse_Team_Leader","Actual_LOS"], Ops_NTL_Cases:["Month","BU","Nurse_Team_Leader","Case","Actual_LOS"], Ops_ER:["Month","BU","ER_Patients","Actual_Conv"], Ops_LOS:["Month","BU","Actual_LOS","MTD_LOS_Target"], Ops_OPD:["Month","BU","Section","Patients"], Flow_Targets:["Month","Channel","ER_Target"]};
-const OPS_TEXT = new Set(["Month","As_Of","BU","Case_Manager","Case","New_Old","Entry_Date","Off_Date","Consultant","Grade","Category","Service_Column","KPI","Section","Nurse_Team_Leader","Channel"]);
+  Ops_KPI:["Month","BU","KPI","Actual"], Ops_NTL:["Month","BU","Nurse_Team_Leader","Actual_LOS"], Ops_NTL_Cases:["Month","BU","Nurse_Team_Leader","Case","Actual_LOS"], Ops_ER:["Month","BU","ER_Patients","Actual_Conv"], Ops_LOS:["Month","BU","Actual_LOS","MTD_LOS_Target"], Ops_OPD:["Month","BU","Section","Patients"], Flow_Targets:["Month","Channel","ER_Target"], Ops_Channel_Summary:["Month","BU","Sales_Channel","Cases"]};
+const OPS_TEXT = new Set(["Month","As_Of","BU","Case_Manager","Case","New_Old","Entry_Date","Off_Date","Consultant","Grade","Category","Service_Column","KPI","Section","Nurse_Team_Leader","Channel","Sales_Channel","Channel_Source"]);
 const SERV_COLS = [["Hospitality","Hospitality"],["Dr_Visit","Dr visit"],["Lab","Lab"],["Medical_Supervision","Medical supervision"],["Devices","Devices"],["Medical_Procedures","Medical procedures"],["Physiotherapy","Physiotherapy"],["Radiology","Radiology"],["Nursing_Procedures","Nursing procedures"],["Ambulance","Ambulance"]];
 const PKG = [["ICU_Days","ICU","var(--navy)"],["IMCU_Days","IMCU","#7FA6CF"],["Ward_Days","Ward","var(--gold)"],["SN24_Days","Special nurse 24h","#3E8E7E"],["SN12_Days","Special nurse 12h","#9B6FB0"]];
 const BU_ORDER = ["Alex","New Cairo","Mohandessen"];
@@ -3005,6 +3010,7 @@ function chReport(){
   return `<div class="sec" style="margin-top:4px"><h2>${esc(ch)}</h2>${pdfBtn("chRep","Report PDF")}</div>`+head+`<div class="sec"><h2>By branch and month</h2><p>Revenue vs MTD target · * month in progress</p></div>${brT}
     <div class="sec"><h2>Sales team in this channel · ${range}</h2><p>${where}</p></div>${repT}
     ${o.total?`<div class="sec"><h2>Leads from this channel · ${range}</h2></div><div class="panel summary num" style="grid-template-columns:repeat(6,minmax(0,1fr))"><div><span>Leads</span><b>${fmt(o.total)}</b></div><div><span>Done</span><b>${fmt(o.Done)}</b><small class="of">${pctTxt(o.Done/o.total)}</small></div><div><span>Rama</span><b>${fmt(o.Rama)}</b></div><div><span>Cancel</span><b>${fmt(o.Cancel)}</b></div><div><span>Closed</span><b>${fmt(o.Closed)}</b></div><div><span>Converted to INP</span><b>${fmt(o.conv)}</b></div></div>`:""}
+    ${chOpsBlock(ch, per, A)}
     ${hc?`<div class="sec"><h2>Revenue history · ${where}</h2>${vBadge(TR)}</div><div class="panel chartbox">${hc}</div>`:""}`;
 }
 
@@ -3028,7 +3034,7 @@ function flowTable(F){
     ${F.rows.map(r=>`<tr><td class="l name"><i class="sw" style="background:${chColor(r.ch)}"></i>${esc(r.ch)}</td>${r.k.map(cell).join("")}<td class="num"><b class="ach">${fmtV1(r.k.reduce((s,x)=>s+x.lostINP,0))}</b>${F.valINP?`<div class="tgt2">${fmtC(r.k.reduce((s,x)=>s+x.lostINP,0)*F.valINP)}</div>`:""}</td></tr>`).join("")}
     ${F.other.map(r=>`<tr><td class="l name"><i class="sw" style="background:${chColor(r.ch)}"></i>${esc(r.ch)}</td>${r.k.map(cell).join("")}<td></td></tr>`).join("")}
     <tr class="total"><td class="l">Total</td>${F.tot.map(x=>`<td class="num">${fmt(x.act)} / ${fmtV1(x.mtd)} ${chip(ratio(x.act,x.mtd))}<div class="tgt2">Target ${fmt(x.full)} · ${fmt(x.inp)} → INP</div></td>`).join("")}<td class="num"><b>${fmtV1(F.lostINP)}</b>${F.valINP?`<div class="tgt2">${fmtC(F.value)}</div>`:""}</td></tr></tbody></table></div>
-    <p class="note">MTD target = monthly target × ${pctTxt(F.f)} of the cycle (data to ${dShort(parseDate(F.asof))}). INP missed = patients short of the MTD target × the target conversion (ER 15%, ambulatory 5%, assessment 80%)${F.valINP?` · value per INP case ${fmtC(F.valINP)} (average new case, Operation)`:""}.</p>`;
+`;
 }
 
 /* ---------- History · Operation (beyond case managers) ---------- */
@@ -3442,6 +3448,115 @@ function histLos(){
     ${grid?`<div class="sec"><h2>Nurse team leaders by month</h2><p>All their cases (special nurse included) against the MTD LOS target</p></div>${grid}`:""}`;
 }
 
+/* ============================================================
+   OPERATION · BY SALES CHANNEL: charge per case and length of stay per channel, branch by branch
+   ============================================================ */
+const caseCh = r => (r.Sales_Channel||"").trim() || "Not set";
+const chOrder = list => [...sortCh(list.filter(c=>c!=="Not set")), ...(list.includes("Not set")?["Not set"]:[])];
+function losByCh(m, bus){   // hospital-care cases from the L.O.S review, grouped by channel
+  const cs=(DB.Ops_NTL_Cases||[]).filter(c=>c.Month===m&&bus.includes(c.BU)&&!isSN(c.Grade));
+  const g={}; cs.forEach(c=>{ const k=caseCh(c); (g[k]=g[k]||[]).push(c); });
+  const f=L=>({n:L.length,a:sum(L,"Actual_LOS"),m:sum(L,"MTD_LOS_Target"),reached:L.filter(c=>c.Actual_LOS>=c.LOS_Target).length,short:L.filter(c=>c.Off_Date&&c.Actual_LOS<c.LOS_Target).length});
+  const o={}; Object.entries(g).forEach(([k,L])=>{ const x=f(L); x.perCase=x.n?x.a/x.n:null; o[k]=x; }); const t=f(cs); t.perCase=t.n?t.a/t.n:null; o.__all=t; return o;
+}
+function opsChannels(){
+  const months=opsMonths(); if(!months.length) return `<div class="panel empty">No case-manager data yet.</div>`;
+  if(!months.includes(state.chm)) state.chm=months.at(-1);
+  const m=state.chm, all=(DB.Ops_Cases||[]).filter(r=>r.Month===m), bus=BU_ORDER.filter(b=>all.some(r=>r.BU===b));
+  if(state.chSel && !bus.includes(state.chSel)) state.chSel=null;
+  const sel=state.chSel, rows=sel?all.filter(r=>r.BU===sel):all, B=sel?[sel]:bus;
+  const L=losByCh(m,B), chs=chOrder([...new Set([...rows.map(caseCh),...Object.keys(L).filter(k=>k!=="__all")])]);
+  const notSet=rows.filter(r=>caseCh(r)==="Not set").length, g=opsAgg(rows);
+  const head=`<section class="hero rpt"><div><div class="sub">Charge per case and length of stay by sales channel · ${opsLabel(m)} · ${sel?esc(sel):"all branches"}</div>
+      <div class="big num">${fmtC(g.cpc)} <span class="of2">per case</span></div><div class="of num">average target ${fmtC(g.avgT)} per case · ${g.n} cases</div>
+      <div class="pctline"><strong class="num">${dayF(L.__all.perCase)}</strong><span class="sub">days per case (hospital care) of 12</span></div></div>
+    <div class="hero-stats rk"><div><b class="num">${pctTxt(g.p)}</b>charges vs MTD target</div><div><b class="num">${chs.filter(c=>c!=="Not set").length}</b>channels</div><div><b class="num">${fmt(L.__all.short)}</b>cases left before 12 days</div><div><b class="num">${notSet}</b>cases without a channel yet</div></div></section>
+`;
+  const cards=`<div class="sec"><h2>Business units</h2><p>${sel?`Showing ${esc(sel)} below · click it again to show all`:"Click a branch to show only its cases below"}</p></div><div class="bus">${bus.map(b=>{const x=opsAgg(all.filter(r=>r.BU===b)), l=losByCh(m,[b]).__all; return `<div class="panel bu" ${selCard("chsel",b,sel===b)}>
+      <header><b>${esc(b)}</b>${chip(x.p)}</header><div class="rev num"><b class="ach big">${fmtC(x.cpc)}</b> <span class="of">per case · avg target ${fmtC(x.avgT)}</span></div>${bar(x.cpc,x.avgT)}
+      <dl class="num"><dt>Cases</dt><dd><b class="ach">${x.n}</b></dd><dt>Days per case</dt><dd><b class="ach">${dayF(l.perCase)}</b> <span class="of">/ 12</span> ${chip(l.perCase!=null?l.perCase/12:null)}</dd><dt>Left before 12 days</dt><dd>${fmt(l.short)} <span class="of">of ${fmt(l.n)}</span></dd></dl></div>`;}).join("")}</div>`;
+  const R=chs.map(c=>{ const rs=rows.filter(r=>caseCh(r)===c), x=rs.length?opsAgg(rs):null, l=L[c]; return {c,rs,x,l}; });
+  const T=`<div class="sec"><h2>Each sales channel · ${sel?esc(sel):"all branches"}</h2><div style="display:flex;gap:8px;align-items:center"><p style="margin:0">Click a channel to see its cases</p>${pdfBtn("chOps","Report PDF")}</div></div>
+    <div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th><th>Cases</th><th>Charge per case vs avg target</th><th>Achieved</th><th>Charges vs MTD target</th><th>Days per case (target 12)</th><th>Achieved</th><th>Reached 12</th><th>Left before 12</th></tr></thead><tbody>
+    ${R.map(({c,rs,x,l})=>`<tr class="click" data-chc="${esc(c)}"><td class="l name"><i class="sw" style="background:${c==="Not set"?"#C8CED6":chColor(c)}"></i>${esc(c)}</td>
+      <td class="num"><b class="ach">${x?x.n:0}</b> <span class="of">${x?x.newN+" new":""}</span></td>
+      <td class="barcell">${x?`<b class="ach num">${fmtC(x.cpc)}</b> <span class="of num">/ ${fmtC(x.avgT)}</span>${bar(x.cpc,x.avgT)}`:'<span class="of">—</span>'}</td><td>${x?chip(ratio(x.cpc,x.avgT)):""}</td>
+      <td class="num">${x?`${fmtC(x.A)} <span class="of">/ ${fmtC(x.M)}</span>`:"—"}</td>
+      <td class="num">${l?`<b class="ach">${dayF(l.perCase)}</b> <span class="of">/ 12 · ${l.n} cases</span>`:'<span class="of">—</span>'}</td><td>${l?chip(l.perCase/12):""}</td>
+      <td class="num">${l?fmt(l.reached):"—"}</td><td class="num">${l?fmt(l.short):"—"}</td></tr>`).join("")}
+    <tr class="total"><td class="l">Total</td><td class="num">${g.n}</td><td class="num">${fmtC(g.cpc)} / ${fmtC(g.avgT)}</td><td>${chip(ratio(g.cpc,g.avgT))}</td><td class="num">${fmtC(g.A)} / ${fmtC(g.M)}</td><td class="num">${dayF(L.__all.perCase)} / 12</td><td>${chip(L.__all.perCase!=null?L.__all.perCase/12:null)}</td><td class="num">${fmt(L.__all.reached)}</td><td class="num">${fmt(L.__all.short)}</td></tr></tbody></table></div>`;
+  const named=R.filter(r=>r.x&&r.c!=="Not set");
+  const c1=chart({labels:named.map(r=>r.c),w:560,h:250,bars:[{name:"Charge per case",color:"var(--navy)",values:named.map(r=>r.x.cpc)},{name:"Average target per case",color:"var(--gold)",values:named.map(r=>r.x.avgT)}],fmtY:fmtC});
+  const named2=R.filter(r=>r.l&&r.c!=="Not set");
+  const c2=chart({labels:named2.map(r=>r.c),w:560,h:250,bars:[{name:"Days per case",color:"#3E8E7E",values:named2.map(r=>+r.l.perCase.toFixed(1))}],lines:[{name:"Target 12 days",color:"#D64545",values:named2.map(()=>12),dash:"3 4",noDots:true}],fmtY:v=>Math.round(v)+" d"});
+  // channel × month
+  const hm=months.slice(-6);
+  const grid=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Sales channel</th>${hm.map(x=>`<th>${mShort(x)}${cycle(x).frac<1?"*":""}</th>`).join("")}</tr></thead><tbody>
+    ${chOrder([...new Set((DB.Ops_Cases||[]).filter(r=>hm.includes(r.Month)&&B.includes(r.BU)).map(caseCh))]).map(c=>`<tr><td class="l name">${esc(c)}</td>${hm.map(x=>{ const rs=(DB.Ops_Cases||[]).filter(r=>r.Month===x&&B.includes(r.BU)&&caseCh(r)===c); if(!rs.length) return '<td class="of">·</td>'; const a=opsAgg(rs), l=losByCh(x,B)[c];
+      return `<td>${chip(ratio(a.cpc,a.avgT))}<div class="tgt2">${fmtC(a.cpc)}/case · ${a.n} cases${l?` · ${dayF(l.perCase)} d`:""}</div></td>`;}).join("")}</tr>`).join("")}</tbody></table></div>`;
+  PDF_ACTIONS.chOps=()=>makePdf({title:"Charge per case and LOS by sales channel",sub:`${opsLabel(m)} · ${sel||"All branches"}`,landscape:true,
+    kpis:[["Charge per case",fmtC(g.cpc)],["Avg target per case",fmtC(g.avgT)],["Days per case",`${dayF(L.__all.perCase)} / 12`],["Cases",String(g.n)],["Without channel",String(notSet)]],
+    sections:[{h:"Each sales channel",html:pdfTable(["Sales channel","Cases","Charge per case","Avg target","Achieved","Charges","MTD target","Days per case","Hospital cases","Reached 12","Left before 12"],
+      R.map(({c,x,l})=>[esc(c),x?x.n:0,x?fmtC(x.cpc):"—",x?fmtC(x.avgT):"—",x?pc(ratio(x.cpc,x.avgT)):"—",x?fmt(x.A):"—",x?fmt(x.M):"—",l?dayF(l.perCase):"—",l?l.n:"—",l?l.reached:"—",l?l.short:"—"]),
+      ["Total",g.n,fmtC(g.cpc),fmtC(g.avgT),pc(ratio(g.cpc,g.avgT)),fmt(g.A),fmt(g.M),dayF(L.__all.perCase),L.__all.n,L.__all.reached,L.__all.short])}]});
+  state.__chRows=R;
+  return head+cards+T+`<div class="two" style="margin-top:14px"><div class="panel chartbox"><h3 class="ct">Charge per case vs average target</h3>${c1}</div><div class="panel chartbox"><h3 class="ct">Days per case (hospital care) vs 12</h3>${c2}</div></div>
+    <div class="sec"><h2>By month · ${sel?esc(sel):"all branches"}</h2><p>Chip = charge per case against the average target per case</p></div>${grid}`;
+}
+function openChDetail(c){
+  const R=(state.__chRows||[]).find(r=>r.c===c); if(!R) return; const x=R.x, l=R.l;
+  const rows=[...R.rs].sort((a,b)=>(a.Actual_LOS!=null?0:0)||(a.Actual_Charge/(a.MTD_Target||1))-(b.Actual_Charge/(b.MTD_Target||1)));
+  const losRows=(DB.Ops_NTL_Cases||[]).filter(cs=>cs.Month===state.chm&&(state.chSel?cs.BU===state.chSel:true)&&caseCh(cs)===c&&!isSN(cs.Grade));
+  PDF_ACTIONS.chOne=()=>makePdf({title:`${c} · cases`,sub:`${opsLabel(state.chm)} · ${state.chSel||"All branches"}`,landscape:true,
+    kpis:[["Charge per case",x?fmtC(x.cpc):"—"],["Avg target",x?fmtC(x.avgT):"—"],["Cases",x?String(x.n):"0"],["Days per case",l?`${dayF(l.perCase)} / 12`:"—"],["Left before 12",l?String(l.short):"—"]],
+    sections:[{h:"Cases (charges)",html:pdfTable(["Case","Branch","Case manager","Type","Grade","Entry","Exit","LOS","Target","MTD","Charged","%"],rows.map(r=>[`<span dir="auto">${esc(r.Case)}</span>`,r.BU,esc(r.Case_Manager),r.New_Old,esc(r.Grade),r.Entry_Date||"",r.Off_Date||"in care",fmtV(r.LOS),fmt(r.Target_Charge),fmt(r.MTD_Target),fmt(r.Actual_Charge),pc(ratio(r.Actual_Charge,r.MTD_Target))]))}]});
+  $("#drawer").innerHTML=`<header><h2>${esc(c)}<small>${opsLabel(state.chm)} · ${state.chSel?esc(state.chSel):"all branches"}</small></h2><div style="display:flex;gap:8px">${pdfBtn("chOne")}<button class="x" data-close aria-label="Close">×</button></div></header>
+    <div class="panel dk"><div><span>Charge per case</span><b class="num">${x?fmtC(x.cpc):"—"} <span class="of">/ ${x?fmtC(x.avgT):"—"}</span></b>${x?bar(x.cpc,x.avgT):""}</div><div><span>Cases</span><b class="num">${x?x.n:0}</b><div class="tgt2">${x?`${x.newN} new · ${fmtC(x.A)} charged`:""}</div></div>
+    <div><span>Days per case (hospital care)</span><b class="num">${l?dayF(l.perCase):"—"} <span class="of">/ 12</span></b><div class="tgt2">${l?`${l.reached} reached · ${l.short} left early`:""}</div></div><div><span>Charges vs MTD</span><b class="num">${x?pctTxt(x.p):"—"}</b></div></div>
+    ${rows.length?`<div class="panel tbl-wrap keep"><table class="grid detail"><thead><tr><th>Case</th><th>Branch</th><th>Case manager</th><th>Type</th><th>Grade</th><th>Entry</th><th>Exit</th><th>LOS</th><th>MTD target</th><th>Charged</th><th>Achieved</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td class="l name" dir="auto">${esc(r.Case)}</td><td class="l">${esc(r.BU)}</td><td class="l">${esc(r.Case_Manager)}</td><td class="l">${esc(r.New_Old)}</td><td class="l">${esc(r.Grade)}</td><td class="l num">${r.Entry_Date?dShort(parseDate(r.Entry_Date)):"—"}</td><td class="l num">${r.Off_Date?dShort(parseDate(r.Off_Date)):'<span class="tag">in care</span>'}</td>
+      <td class="num">${fmtV(r.LOS)}</td><td class="num">${fmt(r.MTD_Target)}</td><td class="num"><b class="ach">${fmt(r.Actual_Charge)}</b></td><td>${chip(ratio(r.Actual_Charge,r.MTD_Target))}</td></tr>`).join("")}</tbody></table></div>`:""}
+    ${losRows.length?`<div class="sec"><h2>Length of stay of these cases</h2></div><div class="panel tbl-wrap keep"><table class="grid detail"><thead><tr><th>Case</th><th>Team leader</th><th>Grade</th><th>LOS target</th><th>MTD target</th><th>Actual LOS</th><th>Achieved</th></tr></thead><tbody>
+    ${losRows.map(cs=>`<tr><td class="l name" dir="auto">${esc(cs.Case)}</td><td class="l">${esc(cs.Nurse_Team_Leader)}</td><td class="l">${esc(cs.Grade)}</td><td class="num">${fmt(cs.LOS_Target)}</td><td class="num">${fmt(cs.MTD_LOS_Target)}</td><td class="num"><b class="ach">${fmt(cs.Actual_LOS)}</b></td><td>${chip(ratio(cs.Actual_LOS,cs.MTD_LOS_Target))}</td></tr>`).join("")}</tbody></table></div>`:""}`;
+  document.body.classList.add("open"); $("#drawer").setAttribute("aria-hidden","false"); openOverlay("drawer");
+}
+/* Commercial · sales channel report: what this channel's cases achieve in Operation */
+function chOpsBlock(ch, months, area){
+  const bus=BU_ORDER.filter(b=>area==="All"||areaOf(b)===area);
+  const rs=(DB.Ops_Cases||[]).filter(r=>months.includes(r.Month)&&bus.includes(r.BU)&&caseCh(r)===ch); if(!rs.length) return "";
+  const x=opsAgg(rs), L=(DB.Ops_NTL_Cases||[]).filter(c=>months.includes(c.Month)&&bus.includes(c.BU)&&caseCh(c)===ch&&!isSN(c.Grade)), dpc=L.length?sum(L,"Actual_LOS")/L.length:null;
+  return `<div class="sec"><h2>What this channel's cases achieve (Operation)</h2></div><div class="panel summary num" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <div><span>Charge per case</span><b>${fmtC(x.cpc)}</b><small class="of">avg target ${fmtC(x.avgT)} · ${pctTxt(ratio(x.cpc,x.avgT))}</small></div><div><span>Cases</span><b>${x.n}</b><small class="of">${x.newN} new</small></div>
+    <div><span>Days per case (hospital care)</span><b>${dayF(dpc)}</b><small class="of">target 12 · ${L.length} cases</small></div><div><span>Left before 12 days</span><b>${L.filter(c=>c.Off_Date&&c.Actual_LOS<c.LOS_Target).length}</b><small class="of">of ${L.length}</small></div></div>`;
+}
+
+/* ---------- Commercial overview · charge per case & LOS by channel (from Operation, no patient names) ---------- */
+function chSummaryRows(){
+  if ((DB.Ops_Cases||[]).length){   // full case data available: build the same summary the data service sends
+    const g={}, key=r=>[r.Month,r.BU,caseCh(r)].join("|"), row=k=>g[k]||(g[k]={Cases:0,New_Cases:0,Target_Charge:0,MTD_Target:0,Actual_Charge:0,LOS_Cases:0,Actual_LOS:0,MTD_LOS_Target:0,Reached_LOS:0,Left_Early:0});
+    (DB.Ops_Cases||[]).forEach(r=>{ const x=row(key(r)); x.Cases++; if(String(r.New_Old).toLowerCase()==="new") x.New_Cases++; x.Target_Charge+=r.Target_Charge||0; x.MTD_Target+=r.MTD_Target||0; x.Actual_Charge+=r.Actual_Charge||0; });
+    (DB.Ops_NTL_Cases||[]).forEach(r=>{ if(isSN(r.Grade)) return; const x=row(key(r)); x.LOS_Cases++; x.Actual_LOS+=r.Actual_LOS||0; x.MTD_LOS_Target+=r.MTD_LOS_Target||0; if((r.Actual_LOS||0)>=(r.LOS_Target||0)) x.Reached_LOS++; else if(r.Off_Date) x.Left_Early++; });
+    return Object.entries(g).map(([k,v])=>{ const [Month,BU,Sales_Channel]=k.split("|"); return {Month,BU,Sales_Channel,...v}; });
+  }
+  return DB.Ops_Channel_Summary||[];
+}
+function chOverviewBlock(){
+  const ms=allMonths().filter(m=>m>=state.from&&m<=state.to);
+  const R=chSummaryRows().filter(r=>ms.includes(r.Month)&&(state.bu==="All"||r.BU===state.bu)); if(!R.length) return "";
+  const agg=L=>{ const o={}; ["Cases","New_Cases","Target_Charge","MTD_Target","Actual_Charge","LOS_Cases","Actual_LOS","MTD_LOS_Target","Reached_LOS","Left_Early"].forEach(k=>o[k]=sum(L,k));
+    o.avgT=o.Cases?o.Target_Charge/o.Cases:null; o.p=o.MTD_Target?o.Actual_Charge/o.MTD_Target:null; o.cpc=o.p!=null&&o.avgT!=null?o.p*o.avgT:null; o.dpc=o.LOS_Cases?o.Actual_LOS/o.LOS_Cases:null; return o; };
+  const chs=chOrder([...new Set(R.map(r=>(r.Sales_Channel||"").trim()||"Not set"))]), T=agg(R);
+  const rows=chs.map(c=>({c,x:agg(R.filter(r=>((r.Sales_Channel||"").trim()||"Not set")===c))}));
+  return `<div class="sec"><h2>Charge per case & length of stay by channel</h2><div style="display:flex;gap:8px;align-items:center"><p style="margin:0">What each channel's admitted cases achieve in Operation · ${state.bu==="All"?"all branches":esc(state.bu)}</p>${allowedSpace("ops")?`<button class="btn pdfb" data-go-ops-ch>Open in Operation →</button>`:""}</div></div>
+    <div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th><th>Cases</th><th>Charge per case vs avg target</th><th>Achieved</th><th>Days per case (target 12)</th><th>Achieved</th><th>Reached 12</th><th>Left before 12</th></tr></thead><tbody>
+    ${rows.map(({c,x})=>`<tr><td class="l name"><i class="sw" style="background:${c==="Not set"?"#C8CED6":chColor(c)}"></i>${esc(c)}</td><td class="num"><b class="ach">${fmt(x.Cases)}</b> <span class="of">${fmt(x.New_Cases)} new</span></td>
+      <td class="barcell">${x.cpc!=null?`<b class="ach num">${fmtC(x.cpc)}</b> <span class="of num">/ ${fmtC(x.avgT)}</span>${bar(x.cpc,x.avgT)}`:'<span class="of">—</span>'}</td><td>${chip(x.cpc!=null&&x.avgT?x.cpc/x.avgT:null)}</td>
+      <td class="num">${x.dpc!=null?`<b class="ach">${dayF(x.dpc)}</b> <span class="of">/ 12 · ${fmt(x.LOS_Cases)} cases</span>`:'<span class="of">—</span>'}</td><td>${chip(x.dpc!=null?x.dpc/12:null)}</td>
+      <td class="num">${x.LOS_Cases?fmt(x.Reached_LOS):"—"}</td><td class="num">${x.LOS_Cases?fmt(x.Left_Early):"—"}</td></tr>`).join("")}
+    <tr class="total"><td class="l">Total</td><td class="num">${fmt(T.Cases)}</td><td class="num">${fmtC(T.cpc)} / ${fmtC(T.avgT)}</td><td>${chip(T.cpc!=null&&T.avgT?T.cpc/T.avgT:null)}</td><td class="num">${dayF(T.dpc)} / 12</td><td>${chip(T.dpc!=null?T.dpc/12:null)}</td><td class="num">${fmt(T.Reached_LOS)}</td><td class="num">${fmt(T.Left_Early)}</td></tr></tbody></table></div>
+`;
+}
+
 /* ---------- Overview ---------- */
 function buAgg(rows){
   const k = ["INP_Rev_Target","INP_Rev_Actual","AMB_Rev_Target","AMB_Rev_Actual","INP_Vol_Target","INP_Vol_Actual","ICU_Target","ICU_Actual","ER_Target","ER_Actual"];
@@ -3527,7 +3642,7 @@ function overview(){
    <tbody>${chRows.map(x=>tr(x)).join("")}${tr({ch:"Total",...g},"total")}</tbody></table></div>`;
   const FS = state.from===state.to && state.bu==="All" ? flowStatus(state.to, "All") : null;   // company-level targets
   const flow = FS ? `<div class="sec"><h2>Patients brought by each channel vs target</h2><p>ER, ambulatory and assessment visits · ${monthLabel(FS.month)} to ${dShort(parseDate(FS.asof))}</p></div>${flowTable(FS)}` : "";
-  return covNote(DB.BU_Channel||[]) + inpOnlyNote(rows) + hero + fcCommercial(rows) + kpis + bus + channels + flow;
+  return covNote(DB.BU_Channel||[]) + inpOnlyNote(rows) + hero + fcCommercial(rows) + kpis + bus + channels + chOverviewBlock() + flow;
 }
 
 /* ---------- Sales team ---------- */
@@ -3594,8 +3709,7 @@ function team(){
   return covNote(DB.Accounts||[]) + summary + `<div class="sec"><h2>Each salesperson</h2><div style="display:flex;gap:8px;align-items:center"><p style="margin:0">Click a name to see every account</p>${pdfBtn("salesTeam","Team PDF")}</div></div><div class="panel tbl-wrap"><table><thead><tr>
     ${th("team","Salesman","Salesperson",true)}${th("team","actual","Revenue vs MTD target")}${th("team","pct","Achieved")}
     ${th("team","OPD_Vol_Actual","OPD cases")}${th("team","OPD_Val_Actual","OPD value")}${th("team","INP_Vol_Actual","Admissions")}${th("team","INP_Val_Actual","INP value")}
-    ${th("team","active","Active accounts")}${th("team","vA","Visits")}</tr></thead><tbody>${body}</tbody></table></div>
-    <p class="note">Revenue = OPD value + INP value, summed from the Accounts tab. Achievement is measured against the MTD target. Click a person to see their accounts.</p>`;
+    ${th("team","active","Active accounts")}${th("team","vA","Visits")}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 /* ---------- Rep drawer ---------- */
@@ -3859,8 +3973,10 @@ document.addEventListener("click", e=>{
   if (tourI>=0 && !e.target.closest(".spot")) return;
   const pdf = e.target.closest("[data-pdf]");
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
-  const cs = e.target.closest("[data-cmsel],[data-ntlsel]");
-  if (cs && !(tourI>=0 && !e.target.closest(".spot"))){ const k=cs.dataset.cmsel!=null?"cmSel":"ntlSel", v=cs.dataset.cmsel??cs.dataset.ntlsel; state[k]=state[k]===v?null:v; const y=scrollY; render(); scrollTo(0,y); return; }
+  if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
+  const chc = e.target.closest("[data-chc]"); if (chc && !(tourI>=0 && !e.target.closest(".spot"))){ openChDetail(chc.dataset.chc); return; }
+  const cs = e.target.closest("[data-cmsel],[data-ntlsel],[data-chsel]");
+  if (cs && !(tourI>=0 && !e.target.closest(".spot"))){ const k=cs.dataset.cmsel!=null?"cmSel":cs.dataset.ntlsel!=null?"ntlSel":"chSel", v=cs.dataset.cmsel??cs.dataset.ntlsel??cs.dataset.chsel; state[k]=state[k]===v?null:v; const y=scrollY; render(); scrollTo(0,y); return; }
   const cmd = e.target.closest("[data-cmd]"); if (cmd && !(tourI>=0 && !e.target.closest(".spot"))){ openCmDetail(cmd.dataset.cmd); return; }
   const ntl = e.target.closest("[data-ntl]"); if (ntl && !(tourI>=0 && !e.target.closest(".spot"))){ openNtlDetail(ntl.dataset.ntl); return; }
   const Oe = e.target.closest("[data-oset],[data-ocm]");
