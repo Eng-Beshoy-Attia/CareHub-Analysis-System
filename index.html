@@ -1830,7 +1830,7 @@ const LV_COLOR = {"ICU General":"var(--navy)","IMCU General":"#7FA6CF","Ward Gen
 const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 function prepOcc(raw){
   const o={};
-  for (const t of Object.keys(OCC_TABS)) o[t]=(raw[t]||[]).filter(r=>t==="Occ_Patients"||!isBlankRow(r,OCC_TEXT)).map(r=>{ const x={}; for (const [k,v] of Object.entries(r)){ if(!k) continue; x[k]= OCC_TEXT.has(k) ? String(v??"").trim() : num(v); if(k==="BU") x[k]=fixBU(x[k]); }
+  for (const t of Object.keys(OCC_TABS)) o[t]=(raw[t]||[]).filter(r=>t==="Occ_Patients"||!isBlankRow(r,OCC_TEXT)).map(r=>{ const x={}; for (const [k,v] of Object.entries(r)){ if(!k) continue; x[k]= OCC_TEXT.has(k) ? String(v??"").trim() : (/^(LOS_MTD|Avg_.*_MTD|Avg_Occupancy_MTD)$/.test(k) && /^\d{4}-\d{2}-\d{2}/.test(String(v))) ? (()=>{ const [,mm,dd]=String(v).slice(0,10).split("-").map(Number); return mm + dd/(dd<10?10:100); })() : num(v); if(k==="BU") x[k]=fixBU(x[k]); }
     if (x.Date){ const d=parseDate(x.Date); x.Date = d?isoDate(d):""; } if (x.Admission_Date){ const d=parseDate(x.Admission_Date); x.Admission_Date = d?isoDate(d):""; }
     if ("Month" in x) x.Month = normMonth(x.Month); return x; }).filter(r=>Object.values(r).some(v=>v!==""&&v!==0));
   return o;
@@ -2282,7 +2282,7 @@ function iaER(m){
 function iaKPIsum(m,k){ const K=(DB.Ops_KPI||[]).filter(r=>r.Month===m&&r.KPI===k&&r.BU!=="Group"&&iaBU(r.BU)); return K.length?K.reduce((s,r)=>s+(+r.Actual||0),0):null; }
 function iaAmb(m){ const c=iaKPIsum(m,"AMB_Cases"), n=iaKPIsum(m,"AMB_INP"); return c?{cases:c,inp:n||0}:null; }
 function iaOps(m){ const r=(DB.Ops_Cases||[]).filter(x=>x.Month===m&&iaBU(x.BU)); return r.length?opsAgg(r):null; }
-function iaLOS(m){ const r=(DB.Ops_LOS||[]).filter(x=>x.Month===m&&iaBU(x.BU)); return r.length?{a:sum(r,"Actual_LOS"),t:sum(r,"MTD_LOS_Target")}:null; }
+function iaLOS(m){ const r=(DB.Ops_LOS||[]).filter(x=>x.Month===m&&iaBU(x.BU)); return r.length?{a:r.reduce((s,x)=>s+losAct(x),0),t:r.reduce((s,x)=>s+losMtd(x),0)}:null; }
 function pearson(x,y){ const P=x.map((v,i)=>[v,y[i]]).filter(([a,b])=>a!=null&&b!=null&&isFinite(a)&&isFinite(b)); const n=P.length; if(n<3) return null;
   const mx=P.reduce((s,p)=>s+p[0],0)/n, my=P.reduce((s,p)=>s+p[1],0)/n; let sxy=0,sxx=0,syy=0; P.forEach(([a,b])=>{sxy+=(a-mx)*(b-my);sxx+=(a-mx)**2;syy+=(b-my)**2;});
   return (sxx&&syy) ? {r:sxy/Math.sqrt(sxx*syy), slope:sxy/sxx, n} : null; }
@@ -2508,9 +2508,9 @@ function opsKpiPage(){
   const missBars=chart({labels:allM.map(mShort),w:560,h:270,bars:buList.map(b=>({name:b,color:cols[b],values:allM.map(mm=>{const x=erAt(mm,b); return x?Math.max(Math.round(x.cases*0.4-x.inp),0):0;})})),fmtY:v=>fmtV(Math.round(v))});
   // LOS history
   const losM=[...new Set((DB.Ops_LOS||[]).map(r=>r.Month))].sort();
-  const losLines=buList.map(b=>({name:b,color:cols[b],values:losM.map(mm=>{const x=(DB.Ops_LOS||[]).find(r=>r.Month===mm&&r.BU===b); return x&&x.MTD_LOS_Target?x.Actual_LOS/x.MTD_LOS_Target*100:null;})})).filter(l=>l.values.some(v=>v!=null));
+  const losLines=buList.map(b=>({name:b,color:cols[b],values:losM.map(mm=>{const x=(DB.Ops_LOS||[]).find(r=>r.Month===mm&&r.BU===b); return x&&losMtd(x)?losAct(x)/losMtd(x)*100:null;})})).filter(l=>l.values.some(v=>v!=null));
   const losChart=chart({labels:losM.map(mShort),w:560,h:270,yMax:100,lines:losLines,fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":Math.round(v)+"%"});
-  const losT=`<div class="panel tbl-wrap"><table class="grid"><thead><tr><th>Branch</th>${losM.map(mm=>`<th>${mShort(mm)}</th>`).join("")}</tr></thead><tbody>${buList.map(b=>`<tr><td class="l name">${b}</td>${losM.map(mm=>{const x=(DB.Ops_LOS||[]).find(r=>r.Month===mm&&r.BU===b); return x?`<td>${chip(ratio(x.Actual_LOS,x.MTD_LOS_Target))}<div class="tgt2">${fmt(x.Actual_LOS)} of ${fmt(x.MTD_LOS_Target)} days</div></td>`:'<td class="of">·</td>';}).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const losT=`<div class="panel tbl-wrap"><table class="grid"><thead><tr><th>Branch</th>${losM.map(mm=>`<th>${mShort(mm)}</th>`).join("")}</tr></thead><tbody>${buList.map(b=>`<tr><td class="l name">${b}</td>${losM.map(mm=>{const x=(DB.Ops_LOS||[]).find(r=>r.Month===mm&&r.BU===b); return x?`<td>${chip(ratio(losAct(x),losMtd(x)))}<div class="tgt2">${fmt(losAct(x))} of ${fmt(losMtd(x))} days</div></td>`:'<td class="of">·</td>';}).join("")}</tr>`).join("")}</tbody></table></div>`;
   // NPS by department
   const depts=[...new Set((DB.Ops_KPI||[]).filter(r=>r.KPI.startsWith("NPS_")&&r.KPI!=="NPS_Overall").map(r=>r.KPI))];
   const npsM=months.filter(mm=>depts.some(d=>kpiGet(mm,bu,d)));
@@ -3056,15 +3056,15 @@ function histConv(){
 function histLos(){
   const bus=hBus(), ms=[...new Set((DB.Ops_LOS||[]).map(r=>r.Month))].sort(); if(!ms.length) return `<div class="panel empty">No L.O.S history yet.</div>`;
   const at=(m,b)=>(DB.Ops_LOS||[]).find(r=>r.Month===m&&r.BU===b);
-  const tot=m=>{const r=(DB.Ops_LOS||[]).filter(x=>x.Month===m&&bus.includes(x.BU)); return r.length?{a:sum(r,"Actual_LOS"),t:sum(r,"MTD_LOS_Target"),c:sum(r,"Cases"),ca:sum(r,"Cases_Achieved")}:null;};
+  const tot=m=>{const r=(DB.Ops_LOS||[]).filter(x=>x.Month===m&&bus.includes(x.BU)); return r.length?{a:r.reduce((s,x)=>s+losAct(x),0),t:r.reduce((s,x)=>s+losMtd(x),0),c:sum(r,"Cases"),ca:sum(r,"Cases_Achieved")}:null;};
   const rates=ms.map(m=>{const x=tot(m); return x&&x.t?x.a/x.t:null;}), T=trendPts(rates);
-  const ch=chart({labels:ms.map(mShort),h:260,yMax:100,lines:[...bus.map(b=>({name:b,color:BR_COL[b],values:ms.map(m=>{const x=at(m,b); return x&&x.MTD_LOS_Target?x.Actual_LOS/x.MTD_LOS_Target*100:null;})})),{name:"Cases reaching their LOS (all)",color:"#9B6FB0",values:ms.map(m=>{const x=tot(m); return x&&x.c?x.ca/x.c*100:null;}),dash:"5 4"}],fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":Math.round(v)+"%"});
+  const ch=chart({labels:ms.map(mShort),h:260,yMax:100,lines:[...bus.map(b=>({name:b,color:BR_COL[b],values:ms.map(m=>{const x=at(m,b); return x&&losMtd(x)?losAct(x)/losMtd(x)*100:null;})})),{name:"Cases reaching their LOS (all)",color:"#9B6FB0",values:ms.map(m=>{const x=tot(m); return x&&x.c?x.ca/x.c*100:null;}),dash:"5 4"}],fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":Math.round(v)+"%"});
   const tbl=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Branch</th>${ms.map(m=>`<th>${mShort(m)}</th>`).join("")}</tr></thead><tbody>
-    ${bus.map(b=>`<tr><td class="l name">${b}</td>${ms.map(m=>{const x=at(m,b); if(b==="Mohandessen"&&m<MNH_START) return '<td class="of">not open</td>'; return x?`<td>${chip(ratio(x.Actual_LOS,x.MTD_LOS_Target))}<div class="tgt2">${fmt(x.Actual_LOS)} of ${fmt(x.MTD_LOS_Target)} days · ${fmt(x.Cases_Achieved)}/${fmt(x.Cases)} cases</div></td>`:'<td class="of">no report</td>';}).join("")}</tr>`).join("")}
+    ${bus.map(b=>`<tr><td class="l name">${b}</td>${ms.map(m=>{const x=at(m,b); if(b==="Mohandessen"&&m<MNH_START) return '<td class="of">not open</td>'; return x?`<td>${chip(ratio(losAct(x),losMtd(x)))}<div class="tgt2">${fmt(losAct(x))} of ${fmt(losMtd(x))} days (hospital care)</div></td>`:'<td class="of">no report</td>';}).join("")}</tr>`).join("")}
     <tr class="total"><td class="l">Total</td>${ms.map(m=>{const x=tot(m); return x?`<td>${chip(ratio(x.a,x.t))}<div class="tgt2">${fmt(x.a)} of ${fmt(x.t)} days</div></td>`:"<td></td>";}).join("")}</tr></tbody></table></div>`;
-  const nt=(DB.Ops_NTL||[]).filter(r=>bus.includes(r.BU));
+  const nt=(DB.Ops_NTL||[]).filter(r=>bus.includes(r.BU)).map(r=>({...r,Actual_LOS:losAct(r),MTD_LOS_Target:losMtd(r)}));
   const grid=nt.length?pmGrid(nt, r=>r.Nurse_Team_Leader, x=>`<span class="name">${esc(x.rs[0].Nurse_Team_Leader)}</span><span class="tag">${BU_ORDER.filter(b=>x.rs.some(r=>r.BU===b)).join(" → ")}</span>`,"MTD_LOS_Target","Actual_LOS",[...new Set(nt.map(r=>r.Month))].sort(),null).replace("<th>Target</th><th>Achieved</th><th>Period</th>","<th>LOS target</th><th>Patient-days</th><th>Period</th>"):"";
-  return `<div class="sec"><h2>Patient-days against the LOS target</h2>${ptsBadge(T,false)}</div><div class="panel chartbox">${ch}${legendHtml([...bus.map(b=>[b,BR_COL[b]]),["Cases reaching their LOS (all)","#9B6FB0",1]])}</div>
+  return `<div class="covnote" style="background:#EEF4FB;border-color:#C9DAEE;color:#24466B">Hospital-care cases only: the 12-day LOS target does not apply to special-nurse cases.</div><div class="sec"><h2>Patient-days against the LOS target</h2>${ptsBadge(T,false)}</div><div class="panel chartbox">${ch}${legendHtml([...bus.map(b=>[b,BR_COL[b]]),["Cases reaching their LOS (all)","#9B6FB0",1]])}</div>
     <div style="margin-top:12px">${tbl}</div>${grid?`<div class="sec"><h2>Nurse team leaders by month</h2><p>Patient-days against the MTD LOS target</p></div>${grid}`:""}`;
 }
 function histKpi(){
@@ -3331,6 +3331,115 @@ function fcConv(kind, lm, bus, tot){
     fcCard({title:`Expected closing ${lab} patients`, f:fc, actual:L.cases, target:0, el, days, fmtF:v=>fmt(Math.round(v)), note:"no target"}),
     fcCard({title:"Expected closing admissions to INP", f:fi, actual:L.inp, target:fc*bm, el, days, fmtF:v=>fmt(Math.round(v))}),
     `<div class="panel fcc"><span>Expected closing conversion</span><b class="num">${pctTxt(fc?fi/fc:null)}</b><div class="fcl">${chip(fc?fi/fc/bm:null)} of the ${Math.round(bm*100)}% benchmark</div><div class="fcr num">${fmt(Math.round(Math.max(fc*bm-fi,0)))} admissions short at this pace</div><div class="fcn"></div></div>`]);
+}
+
+/* ============================================================
+   LOS · NURSE TEAM LEADERS (v3): the 12-day LOS target applies to hospital-care cases only;
+   special-nurse cases are shown apart and never counted in the LOS achievement
+   ============================================================ */
+const isSN = g => /special\s*nurse/i.test(g||"");
+function ntlCases(m, bu, name){ return (DB.Ops_NTL_Cases||[]).filter(c=>c.Month===m&&(!bu||c.BU===bu)&&(!name||c.Nurse_Team_Leader===name)); }
+/* hospital-care figures of one team leader row (from the review's hospital-category block, else from its cases) */
+function ntlH(r){
+  const cs=ntlCases(r.Month,r.BU,r.Nurse_Team_Leader), h=cs.filter(c=>!isSN(c.Grade)), sn=cs.filter(c=>isSN(c.Grade));
+  // the case list in the sheet is the source (each case has its own target); the summary block is only a fallback
+  const a=cs.length?sum(h,"Actual_LOS"):r.Hosp_Actual_LOS, m=cs.length?sum(h,"MTD_LOS_Target"):r.Hosp_MTD_LOS_Target, t=cs.length?sum(h,"LOS_Target"):r.Hosp_Target_LOS;
+  const n=h.length, reached=h.filter(c=>c.Actual_LOS>=c.LOS_Target).length, inCare=h.filter(c=>!c.Off_Date&&c.Actual_LOS<c.LOS_Target).length, short=h.filter(c=>c.Off_Date&&c.Actual_LOS<c.LOS_Target).length;
+  return {a,m,t,n,reached,inCare,short,perCase:n?a/n:null,perCaseT:12,snN:sn.length,snA:cs.length?sum(sn,"Actual_LOS"):r.SPN_Actual_LOS,snM:cs.length?sum(sn,"MTD_LOS_Target"):r.SPN_MTD_LOS_Target};
+}
+const addH=(L)=>{ const o={a:0,m:0,t:0,n:0,reached:0,inCare:0,short:0,snN:0,snA:0,snM:0}; L.forEach(x=>Object.keys(o).forEach(k=>o[k]+=x[k]||0)); o.perCase=o.n?o.a/o.n:null; o.perCaseT=12; return o; };
+function ntlAll(r){
+  const cs=ntlCases(r.Month,r.BU,r.Nurse_Team_Leader);
+  const a=cs.length?sum(cs,"Actual_LOS"):r.Actual_LOS, m=cs.length?sum(cs,"MTD_LOS_Target"):r.MTD_LOS_Target, t=cs.length?sum(cs,"LOS_Target"):r.Target_LOS, n=cs.length||r.Cases||0;
+  const reached=cs.length?cs.filter(c=>c.Actual_LOS>=c.LOS_Target).length:r.Cases_Achieved, inCare=cs.length?cs.filter(c=>!c.Off_Date&&c.Actual_LOS<c.LOS_Target).length:r.Cases_Pending, short=cs.length?cs.filter(c=>c.Off_Date&&c.Actual_LOS<c.LOS_Target).length:r.Cases_Not_Achieved;
+  return {a,m,t,n,reached,inCare,short,perCase:n?a/n:null,perCaseT:n?m/n:null,snN:cs.filter(c=>isSN(c.Grade)).length};
+}
+const pcP = x => x&&x.perCase!=null ? x.perCase/12 : null;   // days per case against the 12-day target
+const dayF = v => v==null?"—":(Math.round(v*10)/10).toFixed(1);
+function opsNtl(){
+  const ms=ntlMonths(); if(!ms.length) return `<div class="panel empty">No nurse-team-leader LOS data yet. Add the Ops_NTL tab.</div>`;
+  if(!ms.includes(state.rnm)) state.rnm=ms.at(-1);
+  const m=state.rnm, all=(DB.Ops_NTL||[]).filter(r=>r.Month===m), bus=BU_ORDER.filter(b=>all.some(r=>r.BU===b));
+  if(state.ntlSel && !bus.includes(state.ntlSel)) state.ntlSel=null;
+  const sel=state.ntlSel; state.rnbu=sel||"All";
+  const H=all.map(r=>({...r,h:ntlH(r)})), dep=b=>addH(H.filter(r=>!b||r.BU===b).map(r=>r.h)), t=dep(null), run=m===ms.at(-1)&&cycle(m).frac<1;
+  const hero=`<section class="hero rpt"><div><div class="sub">Length of stay · hospital-care cases · department · ${monthLabel(m)}${run?" (so far)":""}</div>
+      <div class="big num">${dayF(t.perCase)} <span class="of2">days per case</span></div><div class="of num">Target 12 days per case · patient-days ${fmt(t.a)} of ${fmt(t.m)} MTD (${pctTxt(ratio(t.a,t.m))})</div>
+      <div class="pctline"><strong class="num">${pctTxt(pcP(t))}</strong><span class="sub">of the 12-day target per case</span></div></div>
+    <div class="hero-stats rk"><div><b class="num">${fmt(t.n)}</b>hospital-care cases</div><div><b class="num">${fmt(t.reached)}</b>reached 12 days</div><div><b class="num">${fmt(t.inCare)}</b>still in care</div><div><b class="num">${fmt(t.short)}</b>left before 12 days</div></div></section>
+    <div class="covnote" style="background:#EEF4FB;border-color:#C9DAEE;color:#24466B">Each hospital-care case is measured against 12 days, counted month to date: a case in care for 2 days is expected to have 2 days, but a case that leaves before day 12 is counted against the full 12. Special-nurse cases are left out of this department total (${fmt(t.snN)} cases, ${fmt(t.snA)} days this month), but each team leader below is measured on all their cases, special nurse included, each against its own target in the sheet.</div>`;
+  const cards=`<div class="sec"><h2>Business units</h2><p>${sel?`Showing ${esc(sel)} below · click it again to show all`:"Click a branch to show only its team leaders below"}</p></div><div class="bus">${bus.map(b=>{const x=dep(b); return `<div class="panel bu" ${selCard("ntlsel",b,sel===b)}>
+      <header><b>${esc(b)}</b>${chip(pcP(x))}</header><div class="rev num"><b class="ach big">${dayF(x.perCase)}</b> <span class="of">days per case · target 12</span></div>${bar(x.perCase||0,12)}
+      <dl class="num"><dt>Patient-days</dt><dd><b class="ach">${fmt(x.a)}</b> <span class="of">/ ${fmt(x.m)} MTD</span> ${chip(ratio(x.a,x.m))}</dd><dt>Hospital-care cases</dt><dd><b class="ach">${fmt(x.n)}</b></dd>
+      <dt>Reached 12 days</dt><dd>${fmt(x.reached)} · <span class="of">left early ${fmt(x.short)}</span></dd><dt>Special nurse (apart)</dt><dd><span class="of">${fmt(x.snN)} cases · ${fmt(x.snA)} days</span></dd></dl></div>`;}).join("")}</div>`;
+  const rows=H.filter(r=>!sel||r.BU===sel).map(r=>{const w=ntlAll(r); return {...r,w,p:ratio(w.a,w.m)};}).sort((a,b)=>(b.p??-1)-(a.p??-1)), s=dep(sel);
+  const ws=rows.reduce((o,r)=>{["a","m","t","n","reached","inCare","short","snN"].forEach(k=>o[k]+=r.w[k]||0); return o;},{a:0,m:0,t:0,n:0,reached:0,inCare:0,short:0,snN:0}); ws.perCase=ws.n?ws.a/ws.n:null; ws.perCaseT=ws.n?ws.m/ws.n:null;
+  const T=`<div class="sec"><h2>Each nurse team leader · ${sel?esc(sel):"all branches"}</h2><div style="display:flex;gap:8px;align-items:center"><p style="margin:0">All their cases, special nurse included, each against its own target · click a name for every case</p>${pdfBtn("ntlTeam",sel?`${sel} PDF`:"Department PDF")}</div></div>
+    <div class="panel tbl-wrap"><table><thead><tr><th>Nurse team leader</th><th>Patient-days vs MTD target</th><th>Achieved</th><th>Days per case</th><th>Cases</th><th>Reached target</th><th>In care</th><th>Left early</th><th>Of which special nurse</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr class="click" data-ntl="${esc(r.Nurse_Team_Leader)}"><td class="l"><span class="name">${esc(r.Nurse_Team_Leader)}</span><span class="tag">${esc(r.BU)}</span></td>
+      <td class="barcell"><b class="ach num">${fmt(r.w.a)}</b> <span class="of num">/ ${fmt(r.w.m)}</span>${TG(r.w.t,fmt)}${bar(r.w.a,r.w.m)}</td><td>${chip(r.p)}</td>
+      <td class="num"><b class="ach">${dayF(r.w.perCase)}</b> <span class="of">/ ${dayF(r.w.perCaseT)}</span></td>
+      <td class="num"><b class="ach">${fmt(r.w.n)}</b></td><td class="num">${fmt(r.w.reached)}</td><td class="num">${fmt(r.w.inCare)}</td><td class="num">${fmt(r.w.short)}</td>
+      <td class="num"><span class="of">${fmt(r.w.snN)}</span></td></tr>`).join("")}
+    <tr class="total"><td class="l">Team leaders total</td><td class="num">${fmt(ws.a)} / ${fmt(ws.m)}</td><td>${chip(ratio(ws.a,ws.m))}</td><td class="num">${dayF(ws.perCase)} / ${dayF(ws.perCaseT)}</td><td class="num">${fmt(ws.n)}</td><td class="num">${fmt(ws.reached)}</td><td class="num">${fmt(ws.inCare)}</td><td class="num">${fmt(ws.short)}</td><td class="num"><span class="of">${fmt(ws.snN)}</span></td></tr></tbody></table></div>`;
+  PDF_ACTIONS.ntlTeam=()=>makePdf({title:"Length of stay · nurse team leaders",sub:`${monthLabel(m)}${run?" (so far)":""} · ${sel||"All branches"} · hospital-care cases (special nurse apart)`,
+    kpis:[["Days per case",`${dayF(s.perCase)} / 12`],["Patient-days",`${fmt(s.a)} / ${fmt(s.m)}`],["Achieved",pctTxt(ratio(s.a,s.m))],["Cases",fmt(s.n)],["Reached 12 days",fmt(s.reached)]],
+    sections:[...(sel?[]:[{h:"Branches",html:pdfTable(["Branch","Days per case","Target per case","Patient-days","MTD target","Achieved","Cases","Reached 12","In care","Left early","Special nurse"],bus.map(b=>{const x=dep(b); return [b,dayF(x.perCase),dayF(x.perCaseT),fmt(x.a),fmt(x.m),pc(ratio(x.a,x.m)),fmt(x.n),fmt(x.reached),fmt(x.inCare),fmt(x.short),`${x.snN} · ${fmt(x.snA)} d`];}),["Department",dayF(t.perCase),dayF(t.perCaseT),fmt(t.a),fmt(t.m),pc(ratio(t.a,t.m)),fmt(t.n),fmt(t.reached),fmt(t.inCare),fmt(t.short),`${t.snN} · ${fmt(t.snA)} d`])}]),
+      {h:"Each nurse team leader (all cases, special nurse included, each against its own target)",html:pdfTable(["Nurse team leader","Branch","Patient-days","MTD target","Target","Achieved","Days per case","Target per case","Cases","Reached","In care","Left early","Special nurse"],
+        rows.map(r=>[esc(r.Nurse_Team_Leader),esc(r.BU),fmt(r.w.a),fmt(r.w.m),fmt(r.w.t),pc(r.p),dayF(r.w.perCase),dayF(r.w.perCaseT),fmt(r.w.n),fmt(r.w.reached),fmt(r.w.inCare),fmt(r.w.short),fmt(r.w.snN)]),
+        ["Team leaders total","",fmt(ws.a),fmt(ws.m),fmt(ws.t),pc(ratio(ws.a,ws.m)),dayF(ws.perCase),dayF(ws.perCaseT),fmt(ws.n),fmt(ws.reached),fmt(ws.inCare),fmt(ws.short),fmt(ws.snN)])}]});
+  const histRows=(DB.Ops_NTL||[]).filter(r=>!sel||r.BU===sel).map(r=>{const w=ntlAll(r); return {...r,HA:w.a,HM:w.m};});
+  const grid=pmGrid(histRows, r=>r.Nurse_Team_Leader, x=>`<span class="name">${esc(x.rs[0].Nurse_Team_Leader)}</span><span class="tag">${BU_ORDER.filter(b=>x.rs.some(r=>r.BU===b)).join(" → ")}</span>`,"HM","HA",ms,null)
+    .replace("<th>Target</th><th>Achieved</th><th>Period</th>","<th>LOS target</th><th>Patient-days</th><th>Period</th>");
+  return hero+cards+T+`<div class="sec"><h2>Each team leader by month · ${sel?esc(sel):"all branches"}</h2><p>All their cases (special nurse included) against the MTD LOS target</p></div>${grid}`;
+}
+function openNtlDetail(name){
+  const r=rnRows().find(x=>x.Nurse_Team_Leader===name)||{}, h=r.Month?ntlAll(r):{a:0,m:0,t:0,n:0,reached:0,inCare:0,short:0,snN:0,perCase:null,perCaseT:null};
+  const rows=(DB.Ops_NTL_Cases||[]).filter(c=>c.Month===state.rnm&&c.Nurse_Team_Leader===name&&(state.rnbu==="All"||c.BU===state.rnbu))
+    .sort((a,b)=>(a.Actual_LOS/(a.MTD_LOS_Target||1))-(b.Actual_LOS/(b.MTD_LOS_Target||1)));
+  const status=c=>c.Actual_LOS>=c.LOS_Target?'<span class="chip green">reached</span>':c.Off_Date?'<span class="chip red">left early</span>':'<span class="chip na">in care</span>';
+  PDF_ACTIONS.ntlOne=()=>makePdf({title:name,sub:`Nurse team leader · ${esc(r.BU||"")} · ${monthLabel(state.rnm)} · length of stay (all cases, each against its own target)`,landscape:true,
+    kpis:[["Days per case",`${dayF(h.perCase)} / ${dayF(h.perCaseT)}`],["Patient-days",`${fmt(h.a)} / ${fmt(h.m)}`],["Achieved",pctTxt(ratio(h.a,h.m))],["Cases",fmt(h.n)],["Reached 12 days",fmt(h.reached)]],
+    sections:[{h:"Cases",html:pdfTable(["Case","Type","Grade","Entry","Exit","LOS target","MTD target","Actual LOS","Achieved","Status","ICU","IMCU","Ward","SN24","SN12"],
+      rows.map(c=>[`<span dir="auto">${esc(c.Case)}</span>`,c.New_Old,esc(c.Grade),c.Entry_Date||"",c.Off_Date||"in care",fmt(c.LOS_Target),fmt(c.MTD_LOS_Target),fmt(c.Actual_LOS),pc(ratio(c.Actual_LOS,c.MTD_LOS_Target)),c.Actual_LOS>=c.LOS_Target?"reached":c.Off_Date?"left early":"in care",c.ICU_Days||"",c.IMCU_Days||"",c.Ward_Days||"",c.SN24_Days||"",c.SN12_Days||""]),
+      ["Total","","","","",fmt(h.t),fmt(h.m),fmt(h.a),pc(ratio(h.a,h.m)),"","","","","",""])}]});
+  $("#drawer").innerHTML=`<header><h2>${esc(name)}<small>${esc(r.BU||"")} · ${monthLabel(state.rnm)} · length of stay</small></h2><div style="display:flex;gap:8px">${pdfBtn("ntlOne")}<button class="x" data-close aria-label="Close">×</button></div></header>
+    <div class="panel dk"><div><span>Patient-days vs MTD target</span><b class="num">${fmt(h.a)} <span class="of">/ ${fmt(h.m)}</span> ${chip(ratio(h.a,h.m))}</b>${bar(h.a,h.m)}</div>
+    <div><span>Days per case</span><b class="num">${dayF(h.perCase)} <span class="of">/ ${dayF(h.perCaseT)}</span></b><div class="tgt2">target per case from the sheet</div></div>
+    <div><span>Cases</span><b class="num">${fmt(h.n)}</b><div class="tgt2">${fmt(h.reached)} reached · ${fmt(h.inCare)} in care · ${fmt(h.short)} left early</div></div>
+    <div><span>Of which special nurse</span><b class="num">${fmt(h.snN)}</b><div class="tgt2">included, each with its own target</div></div></div>
+    ${rows.length?`<div class="panel tbl-wrap keep"><table class="grid detail"><thead><tr><th>Case</th><th>Type</th><th>Grade</th><th>Entry</th><th>Exit</th><th>LOS target</th><th>MTD target</th><th>Actual LOS</th><th>Achieved</th><th>Status</th><th>ICU</th><th>IMCU</th><th>Ward</th><th>SN 24h</th><th>SN 12h</th></tr></thead><tbody>
+    ${rows.map(c=>`<tr><td class="l name" dir="auto">${esc(c.Case)}</td><td class="l">${esc(c.New_Old)}</td><td class="l">${esc(c.Grade)}</td><td class="l num">${c.Entry_Date?dShort(parseDate(c.Entry_Date)):"—"}</td><td class="l num">${c.Off_Date?dShort(parseDate(c.Off_Date)):'<span class="tag">in care</span>'}</td>
+      <td class="num">${fmt(c.LOS_Target)}</td><td class="num">${fmt(c.MTD_LOS_Target)}</td><td class="num"><b class="ach">${fmt(c.Actual_LOS)}</b></td><td>${chip(ratio(c.Actual_LOS,c.MTD_LOS_Target))}</td><td>${status(c)}</td>
+      ${["ICU_Days","IMCU_Days","Ward_Days","SN24_Days","SN12_Days"].map(k=>`<td class="num">${c[k]||'<span class="of">·</span>'}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:`<div class="panel empty">The case list for this team leader is not in the L.O.S review.</div>`}`;
+  document.body.classList.add("open"); $("#drawer").setAttribute("aria-hidden","false"); openOverlay("drawer");
+}
+/* department LOS (history, KPIs page, analysis): hospital-care cases only */
+const losAct = x => x.Hosp_MTD_LOS_Target ? x.Hosp_Actual_LOS : x.Actual_LOS;
+const losMtd = x => x.Hosp_MTD_LOS_Target || x.MTD_LOS_Target;
+/* LOS history, same rules as the LOS report: hospital-care cases, days per case, special nurse apart */
+function histLos(){
+  const bus=hBus(), ms=[...new Set((DB.Ops_NTL||[]).map(r=>r.Month))].sort(); if(!ms.length) return `<div class="panel empty">No L.O.S history yet.</div>`;
+  const at=(m,b)=>{ const R=(DB.Ops_NTL||[]).filter(r=>r.Month===m&&(!b||r.BU===b)&&(b||bus.includes(r.BU))); return R.length?addH(R.map(ntlH)):null; };
+  const tot=m=>at(m,null);
+  const per=ms.map(tot), T=trendPts(per.map(pcP));
+  const ch=chart({labels:ms.map(mShort),h:270,lines:[...bus.map(b=>({name:b,color:BR_COL[b],values:ms.map(m=>{const x=at(m,b); return x&&x.perCase!=null?+x.perCase.toFixed(1):null;})})),
+      {name:"Target 12 days",color:"#D64545",values:ms.map(()=>12),dash:"3 4",noDots:true}],
+    fmtY:v=>Math.round(v)+" d",tipFmt:v=>v==null?"—":v.toFixed(1)+" days"});
+  const reach=chart({labels:ms.map(mShort),w:560,h:240,yMax:100,lines:[{name:"Days per case vs 12",color:"var(--navy)",values:per.map(x=>pcP(x)!=null?pcP(x)*100:null)},{name:"Cases that reached 12 days",color:"var(--gold)",values:per.map(x=>x&&x.n?x.reached/x.n*100:null)},{name:"Left before 12 days",color:"#D64545",values:per.map(x=>x&&x.n?x.short/x.n*100:null)}],fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":Math.round(v)+"%"});
+  const cell=(x,b,m)=> (b==="Mohandessen"&&m<MNH_START) ? '<td class="of">not open</td>' : x ? `<td>${chip(pcP(x))}<div class="tgt2"><b>${dayF(x.perCase)}</b> / 12 days per case · ${fmt(x.n)} cases · ${fmt(x.reached)} reached 12</div></td>` : '<td class="of">no report</td>';
+  const tbl=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Branch</th>${ms.map(m=>`<th>${mShort(m)}${cycle(m).frac<1?"*":""}</th>`).join("")}</tr></thead><tbody>
+    ${bus.map(b=>`<tr><td class="l name">${b}</td>${ms.map(m=>cell(at(m,b),b,m)).join("")}</tr>`).join("")}
+    ${bus.length>1?`<tr class="total"><td class="l">Total</td>${ms.map(m=>cell(tot(m),"",m)).join("")}</tr>`:""}
+    <tr><td class="l name">Special nurse (apart)</td>${ms.map(m=>{const x=tot(m); return `<td class="num"><span class="of">${x?`${x.snN} cases · ${fmt(x.snA)} d`:"·"}</span></td>`;}).join("")}</tr></tbody></table></div>`;
+  const nt=(DB.Ops_NTL||[]).filter(r=>bus.includes(r.BU)).map(r=>{const w=ntlAll(r); return {...r,HA:w.a,HM:w.m};});
+  const grid=nt.length?pmGrid(nt, r=>r.Nurse_Team_Leader, x=>`<span class="name">${esc(x.rs[0].Nurse_Team_Leader)}</span><span class="tag">${BU_ORDER.filter(b=>x.rs.some(r=>r.BU===b)).join(" → ")}</span>`,"HM","HA",ms,null).replace("<th>Target</th><th>Achieved</th><th>Period</th>","<th>LOS target</th><th>Patient-days</th><th>Period</th>"):"";
+  return `<div class="covnote" style="background:#EEF4FB;border-color:#C9DAEE;color:#24466B">Hospital-care cases only, measured against 12 days month to date (a case that leaves before day 12 counts the full 12). Special-nurse cases are left out of the totals, but count for each nurse team leader (bottom table) against their own target.</div>
+    <div class="sec"><h2>Days per case by month</h2>${ptsBadge(T,false)}</div><div class="panel chartbox">${ch}${legendHtml([...bus.map(b=>[b,BR_COL[b]]),["Target 12 days","#D64545",1]])}</div>
+    <div class="sec"><h2>Achievement and how cases ended</h2></div><div class="two"><div class="panel chartbox">${reach}${legendHtml([["Days per case vs 12","var(--navy)"],["Cases that reached 12 days","var(--gold)"],["Left before 12 days","#D64545"]])}</div>
+    <div class="panel tbl-wrap"><table><thead><tr><th>Month</th><th>Days per case</th><th>Achieved</th><th>Reached 12</th><th>Left early</th></tr></thead><tbody>${ms.map((m,i)=>{const x=per[i]; return x?`<tr><td class="l name">${monthLabel(m)}${cycle(m).frac<1?" *":""}</td><td class="num"><b class="ach">${dayF(x.perCase)}</b> <span class="of">/ 12</span></td><td>${chip(pcP(x))}</td><td class="num">${fmt(x.reached)} <span class="of">of ${fmt(x.n)}</span></td><td class="num">${fmt(x.short)}</td></tr>`:"";}).join("")}</tbody></table></div></div>
+    <div class="sec"><h2>By branch and month</h2><p>Chip = days per case against the 12-day target · * month in progress</p></div>${tbl}
+    ${grid?`<div class="sec"><h2>Nurse team leaders by month</h2><p>All their cases (special nurse included) against the MTD LOS target</p></div>${grid}`:""}`;
 }
 
 /* ---------- Overview ---------- */
