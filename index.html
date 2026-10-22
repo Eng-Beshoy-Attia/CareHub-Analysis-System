@@ -145,7 +145,8 @@ td.barcell .track{margin-top:5px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;margin-bottom:12px;flex-wrap:wrap}
 .seg button{all:unset;cursor:pointer;padding:7px 12px;font-size:13px;color:var(--muted);border-right:1px solid var(--line)}
 .seg button:last-child{border-right:0}
-.seg button[aria-pressed=true]{background:var(--navy);color:#fff}
+.seg button[aria-pressed=true]{background:var(--navy);color:#fff;font-weight:600;box-shadow:inset 0 -3px 0 var(--gold)}
+.seg button:not([aria-pressed=true]):hover{background:#F1F4F8;color:var(--navy)}
 
 .empty{padding:40px;text-align:center;color:var(--muted)}
 .note{font-size:12px;color:var(--muted);margin-top:10px}
@@ -425,6 +426,11 @@ table.detail td.name{white-space:normal;min-width:160px}
 .fcc .g{color:var(--green)}
 
 .fcline{font-size:13px;margin:6px 0 2px;color:#334155}.fcline b{color:var(--navy)}
+
+table.daygrid th,table.daygrid td{padding:6px 7px;font-size:12.5px;text-align:center;min-width:30px}
+table.daygrid td.l,table.daygrid th:first-child{text-align:left;min-width:150px;position:sticky;left:0;background:var(--card,#fff);z-index:1}
+
+.tbl-title{font-size:13.5px;font-weight:600;color:var(--navy);margin:16px 2px 8px}
 
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
@@ -796,7 +802,7 @@ const CHANNEL_ORDER = ["Digital-Pure","Corporate","Community","Family Medicine",
 const PAGES = [
   {id:"occ", label:"Occupancy", grp:"Occupancy"},
   {id:"occ_pat", label:"Patients & care teams", grp:"Occupancy"},
-  {id:"occ_inp", label:"INP & conversion", grp:"Occupancy"},
+  {id:"occ_inp", label:"INP & conversion", grp:"Occupancy"},{id:"occ_flow", label:"Daily flow by channel", grp:"Occupancy"},
   {id:"overview", label:"Overview", grp:"Commercial"},
   {id:"team", label:"Sales team", grp:"Commercial"},
   {id:"accounts", label:"Accounts", grp:"Commercial"},
@@ -813,7 +819,7 @@ PAGES.push({id:"leads", label:"Leads", grp:"Leads"},{id:"leads_trends", label:"L
   {id:"ia", label:"Revenue drivers", grp:"Informative analysis"},{id:"ia_funnel", label:"Leads → revenue", grp:"Informative analysis"},{id:"ia_stake", label:"Value at stake", grp:"Informative analysis"});
 PAGES.forEach(p=>{ if(!p.grp) p.grp="Commercial"; });
 { const L=Object.fromEntries(PAGES.map(p=>[p.id,p])), order=[
-    ["occ","Occupancy"],["occ_pat","Occupancy"],["occ_inp","Occupancy"],
+    ["occ","Occupancy"],["occ_pat","Occupancy"],["occ_inp","Occupancy"],["occ_flow","Occupancy"],
     ["overview","Commercial"],["team","Commercial"],["fm","Commercial"],["accounts","Commercial"],["visits","Commercial"],["ch_rep","Commercial"],
     ["leads","Leads"],["leads_trends","Leads"],
     ["ops_kpi","Operation","Operational KPIs"],["ops_er","Operation","ER conversion"],["ops","Operation","Case managers"],["ops_amb","Operation","Ambulatory conversion"],["ops_ntl","Operation","LOS · nurse team leaders"],["ops_ch","Operation","By sales channel"],["ops_cases","Operation","Cases"],
@@ -836,7 +842,7 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 
 let DB = null, SOURCE = {mode:"sample", at:null, error:null};
 const state = {page:"occ", month:null, from:null, to:null, odate:null, obu:"All", olv:"All", och:"All", oq:"",
-  okm:null, okbu:"Group", hob:"All", rchF:null, rchT:null, rchA:"All", rcm:null, rcmM:null, rcmBU:"All", cmSel:null, ntlSel:null, chSel:null, chm:null, rnm:null, rnbu:"All", rcbu:"All", rch:null, om:null, obu2:"All", ocm:"All", ogr:"All", ost:"All", oq2:"", iafrom:null, iato:null, iam:null, iareg:"All",
+  okm:null, okbu:"Group", hob:"All", rchF:null, rchT:null, rchA:"All", rcm:null, rcmM:null, rcmBU:"All", cmSel:null, ntlSel:null, chSel:null, chm:null, ofm:null, ofk:"ER", rnm:null, rnbu:"All", rcbu:"All", rch:null, om:null, obu2:"All", ocm:"All", ogr:"All", ost:"All", oq2:"", iafrom:null, iato:null, iam:null, iareg:"All",
   hfrom:null, hto:null, hregion:"All", hch:"All", hmetric:"Revenue", hsm:"Value", hfm:"Value", hq:"", hseg:"All", hshow:100, bu:"All", region:"All", channel:"All", rep:"All", q:"", seg:"all",
   lfrom:null, lto:null, ltf:null, ltt:null,
   lbu:"All", lch:"All", lin:"All", lclean:true, lout:"All", lreason:null, lgrp:null, lservice:"All", lq:"", lshow:100,
@@ -1174,6 +1180,14 @@ function _renderChrome(){
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("Operation · ","")); return;
   }
+  if (state.page==="occ_flow"){
+    const cy=occCycles().slice().reverse(); if(!cy.includes(state.ofm)) state.ofm=cy[0];
+    f = `<label>Month<select data-f="ofm">${cy.map(x=>`<option value="${x}" ${x===state.ofm?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label>`;
+    f += sel("Business unit","obu",["All",...["Alex","New Cairo","Mohandessen"].filter(b=>(DB.Occ_Capacity||[]).some(r=>r.BU===b))]);
+    sub = `Occupancy · ${state.ofm?monthLabel(state.ofm):""}${state.obu!=="All"?" · "+state.obu:""}`;
+    $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
+    renderMobile(page, sub.replace("Occupancy · ","")); return;
+  }
   if (state.page.startsWith("occ")){
     const od=occDates().slice().reverse();
     f = `<label>Day<select data-f="odate">${od.map(d=>`<option value="${d}" ${d===state.odate?"selected":""}>${dShort(parseDate(d))} ${parseDate(d).getFullYear()}</option>`).join("")}</select></label>`;
@@ -1317,7 +1331,7 @@ function render(){
   if (state.page==="ch_rep"){ v.innerHTML = chReport(); cardify(v); return; }
   if (state.page.startsWith("hist_")){ v.innerHTML = ({hist_kpi:histKpi,hist_conv:histConv,hist_los:histLos})[state.page](); cardify(v); return; }
   if (state.page.startsWith("ia")){ v.innerHTML = ({ia:iaDriversPage,ia_funnel:iaFunnel,ia_stake:iaStake})[state.page](); cardify(v); return; }
-  if (state.page.startsWith("occ")){ v.innerHTML = ({occ:occOverview,occ_pat:occPatients,occ_inp:occINP})[state.page](); cardify(v); return; }
+  if (state.page.startsWith("occ")){ v.innerHTML = ({occ:occOverview,occ_pat:occPatients,occ_inp:occINP,occ_flow:occFlow})[state.page](); cardify(v); return; }
   if (state.page.startsWith("h_")){ v.innerHTML = ({h_trends:hTrends,h_team:hTeam,h_acc:hAccounts,h_fm:hFM})[state.page](); cardify(v); return; }
   if (!inMonth([...PERF_TABS.flatMap(t=>DB[t]||[]), ...(DB.Leads||[])]).length){ v.innerHTML = `<div class="panel empty">No detailed performance data for ${periodLabel()} yet. Monthly actuals for this period are under <a href="#" data-page="h_trends">Historical</a>; add performance rows for these months in the sheet to see targets here.</div>`; return; }
   const need={team:"Accounts",accounts:"Accounts",fm:"FamilyMedicine",visits:"Visits"}[state.page];
@@ -1833,11 +1847,17 @@ const OCC_TEXT = new Set(["BU","Level","Patient","Consultant","Case_Manager","Nu
 const LEVELS = [["ICU General","ICU","ICU"],["IMCU General","IMCU","IMCU"],["Ward General","Ward","Ward"]];
 const LV_COLOR = {"ICU General":"var(--navy)","IMCU General":"#7FA6CF","Ward General":"var(--gold)","Special Nurse":"#3E8E7E"};
 const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+/* a decimal typed into a date-formatted cell: Google keeps month.day (7.5 → 2026-07-05, 11.5 → 2026-11-05, 6.7 → 2026-06-07) */
+function dateTypedNumber(v){ const [,mm,dd]=String(v).slice(0,10).split("-").map(Number); return mm + dd/(dd<10?10:100); }
 function prepOcc(raw){
   const o={};
-  for (const t of Object.keys(OCC_TABS)) o[t]=(raw[t]||[]).filter(r=>t==="Occ_Patients"||!isBlankRow(r,OCC_TEXT)).map(r=>{ const x={}; for (const [k,v] of Object.entries(r)){ if(!k) continue; x[k]= OCC_TEXT.has(k) ? String(v??"").trim() : (/^(LOS_MTD|Avg_.*_MTD|Avg_Occupancy_MTD)$/.test(k) && /^\d{4}-\d{2}-\d{2}/.test(String(v))) ? (()=>{ const [,mm,dd]=String(v).slice(0,10).split("-").map(Number); return mm + dd/(dd<10?10:100); })() : num(v); if(k==="BU") x[k]=fixBU(x[k]); }
+  for (const t of Object.keys(OCC_TABS)) o[t]=(raw[t]||[]).filter(r=>t==="Occ_Patients"||!isBlankRow(r,OCC_TEXT)).map(r=>{ const x={}; for (const [k,v] of Object.entries(r)){ if(!k) continue; x[k]= OCC_TEXT.has(k) ? String(v??"").trim() : (k!=="Date" && k!=="Admission_Date" && /^\d{4}-\d{2}-\d{2}/.test(String(v))) ? dateTypedNumber(v) : num(v); if(k==="BU") x[k]=fixBU(x[k]); }
     if (x.Date){ const d=parseDate(x.Date); x.Date = d?isoDate(d):""; } if (x.Admission_Date){ const d=parseDate(x.Admission_Date); x.Admission_Date = d?isoDate(d):""; }
     if ("Month" in x) x.Month = normMonth(x.Month); return x; }).filter(r=>Object.values(r).some(v=>v!==""&&v!==0));
+  // the same branch × channel (or branch × day) entered twice: the row further down the sheet is the newer one
+  const keepLast=(rows,key)=>{ const m=new Map(); rows.forEach(r=>m.set(key(r),r)); return [...m.values()]; };
+  if (o.Occ_INP) o.Occ_INP = keepLast(o.Occ_INP, r=>[r.Month,r.BU,r.Channel].join("|"));
+  if (o.Occ_Daily) o.Occ_Daily = keepLast(o.Occ_Daily, r=>[r.Date,r.BU].join("|"));
   return o;
 }
 const validOcc = (tab, rows) => rows && rows.length>0 && OCC_TABS[tab].every(c=>c in rows[0]);
@@ -3557,6 +3577,80 @@ function chOverviewBlock(){
 `;
 }
 
+/* ============================================================
+   OCCUPANCY · DAILY FLOW: ER, ambulatory and assessment visits per sales channel, day by day,
+   with admissions and discharges, for a whole cycle and one branch or all
+   ============================================================ */
+/* the conversion itself (e.g. 27%), coloured by how it compares with its target (ER 15%, ambulatory 5%, assessment 80%) */
+const convChip = (i,n,bm) => n ? `<span class="chip ${tone(i/n/bm)}" title="target ${Math.round(bm*100)}%">${pctTxt(i/n)}</span>` : '<span class="of">—</span>';
+const FLOW_KINDS = {ER:["ER","ER_Cases","ER_INP",0.15], AMB:["Ambulatory","AMB_Cases","AMB_INP",0.05], AS:["Assessment","Assess_Cases","Assess_INP",0.8]};
+const occCycles = () => [...new Set([...(DB.Occ_Daily||[]).map(r=>r.Date),...(DB.Occ_Conversion||[]).map(r=>r.Date)].filter(Boolean).map(d=>cycleKey(parseDate(d))))].sort();
+function occFlow(){
+  const cyc=occCycles(); if(!cyc.length) return occEmpty();
+  if(!cyc.includes(state.ofm)) state.ofm=cyc.at(-1);
+  const m=state.ofm, c=cycle(m), inC=d=>cycleKey(parseDate(d))===m;
+  const conv=(DB.Occ_Conversion||[]).filter(r=>inC(r.Date)&&occBU(r)), daily=(DB.Occ_Daily||[]).filter(r=>inC(r.Date)&&occBU(r));
+  const lastDay=[...conv.map(r=>r.Date),...daily.map(r=>r.Date)].sort().at(-1); if(!lastDay) return occBanner()+`<div class="panel empty">No daily reports for ${monthLabel(m)}${state.obu!=="All"?" · "+esc(state.obu):""}.</div>`;
+  const days=[]; for(let d=new Date(c.start); d<=parseDate(lastDay); d=new Date(d.getTime()+864e5)) days.push(isoDate(d));
+  const first=conv.length?conv.map(r=>r.Date).sort()[0]:null;
+  const chs=chOrder([...new Set(conv.map(r=>r.Channel))]);
+  const S=(rows,k)=>sum(rows,k);
+  const tot=Object.fromEntries(Object.entries(FLOW_KINDS).map(([key,[l,ck,ik]])=>[key,{n:S(conv,ck),i:S(conv,ik)}]));
+  const adm=S(daily,"Admitted_Upgraded"), dis=S(daily,"Discharged_Downgraded");
+  const el=days.length, run=parseDate(lastDay)<c.end;
+  // targets (company level) only when all branches are shown
+  const tm=[...new Set((DB.Flow_Targets||[]).map(r=>r.Month))].sort().filter(x=>x<=m).at(-1), FT=state.obu==="All"&&tm?(DB.Flow_Targets||[]).filter(r=>r.Month===tm):[];
+  const frac=el/c.days, tgt=(key,ch)=>{ const tk={ER:"ER_Target",AMB:"AMB_Target",AS:"Assess_Target"}[key]; const r=FT.filter(x=>!ch||x.Channel===ch); return r.length?sum(r,tk)*frac:null; };
+  const kpi=(key)=>{ const [l,,,bm]=FLOW_KINDS[key], x=tot[key], T=tgt(key);
+    return `<div class="panel kcard"><span>${l} patients</span><b class="num">${fmt(x.n)}</b><div class="kt">${T!=null?`MTD target ${fmtV1(T)} ${chip(ratio(x.n,T))}`:`${fmtV1(x.n/el)} per day`}</div>
+      <small><b>${fmt(x.i)}</b> admitted to INP · conversion ${convChip(x.i,x.n,bm)} <span class="of">target ${Math.round(bm*100)}%</span></small></div>`; };
+  const head=`<div class="sec"><h2>${monthLabel(m)}${run?" so far":""} · ${state.obu==="All"?"all branches":esc(state.obu)}</h2><p>${el} days · from the daily occupancy reports${first&&first>c.start.toISOString().slice(0,10)&&inC(first)?` · the ER / ambulatory section starts ${dShort(parseDate(first))}`:""}</p></div>
+    <div class="kcards">${kpi("ER")}${kpi("AMB")}${kpi("AS")}
+      <div class="panel kcard"><span>Admitted to INP (all three)</span><b class="num">${fmt(tot.ER.i+tot.AMB.i+tot.AS.i)}</b><div class="kt">${fmtV1((tot.ER.i+tot.AMB.i+tot.AS.i)/el)} per day</div><small>ER ${fmt(tot.ER.i)} · ambulatory ${fmt(tot.AMB.i)} · assessment ${fmt(tot.AS.i)}</small></div>
+      <div class="panel kcard"><span>Admissions / upgrades</span><b class="num" style="color:var(--green)">${fmt(adm)}</b><div class="kt">${fmtV1(adm/el)} per day</div><small>into the beds, from the daily census</small></div>
+      <div class="panel kcard"><span>Discharges / downgrades</span><b class="num" style="color:var(--red)">${fmt(dis)}</b><div class="kt">${fmtV1(dis/el)} per day</div><small>net ${adm-dis>=0?"+":""}${fmt(adm-dis)} patients</small></div>
+      <div class="panel kcard"><span>Admissions to discharges</span><b class="num" style="color:${adm>=dis?"var(--green)":"var(--red)"}">${dis?Math.round(adm/dis*100)+"%":"—"}</b><div class="kt">${fmt(adm)} in : ${fmt(dis)} out</div><small>${adm>dis?"more patients coming in than leaving: the census grows":adm<dis?"more patients leaving than coming in: the census shrinks":"as many in as out"}</small></div></div>`;
+  // per sales channel
+  const chT=`<div class="sec"><h2>By sales channel</h2>${FT.length?`<p>Against the company targets, month to date (${pctTxt(frac)} of the cycle)</p>`:""}</div><h3 class="tbl-title">ER, ambulatory and assessment patients and their admissions to INP · each sales channel</h3><div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th>${Object.values(FLOW_KINDS).map(([l])=>`<th>${l}</th><th>→ INP</th>`).join("")}<th>Total INP</th></tr></thead><tbody>
+    ${chs.map(ch=>{ const r=conv.filter(x=>x.Channel===ch); let ti=0; return `<tr><td class="l name"><i class="sw" style="background:${chColor(ch)}"></i>${esc(ch)}</td>${Object.entries(FLOW_KINDS).map(([key,[l,ck,ik,bm]])=>{ const n=S(r,ck), i=S(r,ik), T=tgt(key,ch); ti+=i;
+      return `<td class="num"><b class="ach">${fmt(n)}</b>${T?` <span class="of">/ ${fmtV1(T)}</span> ${chip(ratio(n,T))}`:""}</td><td class="num"><b class="ach">${fmt(i)}</b> ${convChip(i,n,bm)}<div class="tgt2">target ${Math.round(bm*100)}%</div></td>`;}).join("")}<td class="num"><b class="ach">${fmt(ti)}</b></td></tr>`; }).join("")}
+    <tr class="total"><td class="l">Total</td>${Object.entries(FLOW_KINDS).map(([key,[l,ck,ik,bm]])=>{const x=tot[key], T=tgt(key); return `<td class="num">${fmt(x.n)}${T?` / ${fmtV1(T)} ${chip(ratio(x.n,T))}`:""}</td><td class="num">${fmt(x.i)} ${convChip(x.i,x.n,bm)}<div class="tgt2">target ${Math.round(bm*100)}%</div></td>`;}).join("")}<td class="num">${fmt(tot.ER.i+tot.AMB.i+tot.AS.i)}</td></tr></tbody></table></div>`;
+  // day by day for the chosen measure, stacked by channel
+  const K=state.ofk||"ER", isInp=K==="INP";
+  const val=(d,ch)=>{ const r=conv.filter(x=>x.Date===d&&x.Channel===ch); return isInp? S(r,"ER_INP")+S(r,"AMB_INP")+S(r,"Assess_INP") : S(r,FLOW_KINDS[K][1]); };
+  const lab=days.map(d=>{const x=parseDate(d); return x.getDate()===c.start.getDate()?dShort(x):String(x.getDate());});
+  const dayTh=days.map((d,i)=>{const x=parseDate(d); return `<th>${i===0||x.getDate()===1?`<small style="display:block;font-weight:400;color:var(--muted)">${x.toLocaleDateString("en-GB",{month:"short"})}</small>`:""}${x.getDate()}</th>`;}).join("");
+  const seg=`<div class="seg" style="margin-bottom:10px">${[["ER","ER patients"],["AMB","Ambulatory patients"],["AS","Assessment visits"],["INP","Admitted to INP"]].map(([k,l])=>`<button class="${K===k?"on":""}" aria-pressed="${K===k}" data-ofk="${k}">${l}</button>`).join("")}</div>`;
+  const ch1=chart({labels:lab,h:290,bars:chs.map(ch=>({name:ch,color:chColor(ch),values:days.map(d=>val(d,ch))})),
+    lines:isInp?[]:[{name:"Admitted to INP",color:"#D64545",values:days.map(d=>{const r=conv.filter(x=>x.Date===d); return S(r,FLOW_KINDS[K][2]);})}],fmtY:v=>fmt(Math.round(v))});
+  const grid=`<div class="panel tbl-wrap keep"><table class="grid daygrid"><thead><tr><th>Sales channel · day</th>${dayTh}<th>Total</th></tr></thead><tbody>
+    ${chs.map(ch=>{ const v=days.map(d=>val(d,ch)); return `<tr><td class="l name">${esc(ch)}</td>${v.map(x=>`<td class="num">${x||'<span class="of">·</span>'}</td>`).join("")}<td class="num"><b>${fmt(v.reduce((a,b)=>a+b,0))}</b></td></tr>`; }).join("")}
+    <tr class="total"><td class="l">Total</td>${days.map(d=>`<td class="num">${chs.reduce((s,ch)=>s+val(d,ch),0)||""}</td>`).join("")}<td class="num">${fmt(days.reduce((s,d)=>s+chs.reduce((q,ch)=>q+val(d,ch),0),0))}</td></tr></tbody></table></div>`;
+  // admissions, discharges and patients in beds
+  const D=k=>days.map(d=>S(daily.filter(r=>r.Date===d),k)), beds=days.map(d=>{const r=daily.filter(x=>x.Date===d); return r.length?S(r,"ICU")+S(r,"IMCU")+S(r,"Ward"):null;});
+  const ch2=chart({labels:lab,h:270,bars:[{name:"Admitted / upgraded",color:"var(--green)",values:D("Admitted_Upgraded")},{name:"Discharged / downgraded",color:"#D64545",values:D("Discharged_Downgraded")}],lines:[{name:"Patients in beds",color:"var(--navy)",values:beds,width:2.6}],fmtY:v=>fmt(Math.round(v))});
+  const adT=`<div class="panel tbl-wrap keep"><table class="grid daygrid"><thead><tr><th>Day of the cycle</th>${dayTh}<th>Total</th></tr></thead><tbody>
+    <tr><td class="l name" style="color:var(--green)">Admitted / upgraded</td>${D("Admitted_Upgraded").map(x=>`<td class="num">${x||'<span class="of">·</span>'}</td>`).join("")}<td class="num"><b>${fmt(adm)}</b></td></tr>
+    <tr><td class="l name" style="color:var(--red)">Discharged / downgraded</td>${D("Discharged_Downgraded").map(x=>`<td class="num">${x||'<span class="of">·</span>'}</td>`).join("")}<td class="num"><b>${fmt(dis)}</b></td></tr>
+    <tr><td class="l name">Admissions to discharges</td>${days.map((d,i)=>{const a=D("Admitted_Upgraded")[i], o=D("Discharged_Downgraded")[i]; return `<td class="num" style="color:${a>o?"var(--green)":a<o?"var(--red)":"var(--muted)"}">${o?Math.round(a/o*100)+"%":a?"↑":'<span class="of">·</span>'}</td>`;}).join("")}<td class="num"><b>${dis?Math.round(adm/dis*100)+"%":"—"}</b></td></tr>
+    <tr class="total"><td class="l">Patients in beds</td>${beds.map(x=>`<td class="num">${x??""}</td>`).join("")}<td></td></tr></tbody></table></div>`;
+  const brs=BU_ORDER.filter(b=>(DB.Occ_Daily||[]).some(r=>r.BU===b&&inC(r.Date))&&(state.obu==="All"||state.obu===b));
+  const brT=brs.length>1?`<h3 class="tbl-title">Admissions to discharges · each branch</h3><div class="panel tbl-wrap"><table><thead><tr><th>Branch</th><th>Admitted / upgraded</th><th>Discharged / downgraded</th><th>Net</th><th>Admissions to discharges</th></tr></thead><tbody>
+    ${brs.map(b=>{const r=(DB.Occ_Daily||[]).filter(x=>x.BU===b&&inC(x.Date)), a=sum(r,"Admitted_Upgraded"), o=sum(r,"Discharged_Downgraded"); return `<tr><td class="l name">${b}</td><td class="num" style="color:var(--green)"><b>${fmt(a)}</b></td><td class="num" style="color:var(--red)"><b>${fmt(o)}</b></td><td class="num">${a-o>=0?"+":""}${fmt(a-o)}</td><td class="num"><b style="color:${a>=o?"var(--green)":"var(--red)"}">${o?Math.round(a/o*100)+"%":"—"}</b> <span class="of">${fmt(a)} : ${fmt(o)}</span></td></tr>`;}).join("")}
+    <tr class="total"><td class="l">Total</td><td class="num">${fmt(adm)}</td><td class="num">${fmt(dis)}</td><td class="num">${adm-dis>=0?"+":""}${fmt(adm-dis)}</td><td class="num">${dis?Math.round(adm/dis*100)+"%":"—"}</td></tr></tbody></table></div>`:"";
+  PDF_ACTIONS.occFlow=()=>makePdf({title:"Daily flow · ER, ambulatory, assessment and admissions",sub:`${monthLabel(m)}${run?" (so far)":""} · ${state.obu==="All"?"All branches":state.obu}`,landscape:true,
+    kpis:[["ER patients",`${fmt(tot.ER.n)} · ${pctTxt(tot.ER.n?tot.ER.i/tot.ER.n:null)} to INP`],["Ambulatory",`${fmt(tot.AMB.n)} · ${pctTxt(tot.AMB.n?tot.AMB.i/tot.AMB.n:null)}`],["Assessment",`${fmt(tot.AS.n)} · ${pctTxt(tot.AS.n?tot.AS.i/tot.AS.n:null)}`],["Admitted : discharged",`${fmt(adm)} : ${fmt(dis)}`],["Admissions to discharges",dis?Math.round(adm/dis*100)+"%":"—"]],
+    sections:[{h:"By sales channel",html:pdfTable(["Sales channel","ER","ER → INP","Ambulatory","Amb → INP","Assessment","Assess → INP","Total INP"],chs.map(ch=>{const r=conv.filter(x=>x.Channel===ch); return [esc(ch),fmt(S(r,"ER_Cases")),fmt(S(r,"ER_INP")),fmt(S(r,"AMB_Cases")),fmt(S(r,"AMB_INP")),fmt(S(r,"Assess_Cases")),fmt(S(r,"Assess_INP")),fmt(S(r,"ER_INP")+S(r,"AMB_INP")+S(r,"Assess_INP"))];}),
+      ["Total",fmt(tot.ER.n),fmt(tot.ER.i),fmt(tot.AMB.n),fmt(tot.AMB.i),fmt(tot.AS.n),fmt(tot.AS.i),fmt(tot.ER.i+tot.AMB.i+tot.AS.i)])},
+      {h:"Day by day",html:pdfTable(["Day","ER","ER → INP","Ambulatory","Amb → INP","Assessment","Assess → INP","Admitted","Discharged","Adm : Dis","In beds"],days.map((d,i)=>{const r=conv.filter(x=>x.Date===d), a=D("Admitted_Upgraded")[i], o=D("Discharged_Downgraded")[i]; return [dShort(parseDate(d)),S(r,"ER_Cases"),S(r,"ER_INP"),S(r,"AMB_Cases"),S(r,"AMB_INP"),S(r,"Assess_Cases"),S(r,"Assess_INP"),a,o,o?Math.round(a/o*100)+"%":"",beds[i]??""];}),
+      ["Total",fmt(tot.ER.n),fmt(tot.ER.i),fmt(tot.AMB.n),fmt(tot.AMB.i),fmt(tot.AS.n),fmt(tot.AS.i),fmt(adm),fmt(dis),dis?Math.round(adm/dis*100)+"%":"",""])}]});
+  return occBanner()+`<div style="display:flex;justify-content:flex-end;margin:-4px 0 -8px">${pdfBtn("occFlow","Report PDF")}</div>`+head+chT+
+    `<div class="sec"><h2>Day by day by sales channel</h2></div>${seg}<div class="panel chartbox"><h3 class="ct">${({ER:"ER patients",AMB:"Ambulatory patients",AS:"Assessment visits",INP:"Admitted to INP"})[K]} per day, by sales channel</h3>${ch1}${legendHtml([...chs.map(ch=>[ch,chColor(ch)]),...(isInp?[]:[["Admitted to INP","#D64545",1]])])}</div>
+    <h3 class="tbl-title">${({ER:"ER patients",AMB:"Ambulatory patients",AS:"Assessment visits",INP:"Admitted to INP"})[K]} · each sales channel, each day</h3>${grid}
+    <div class="sec"><h2>Admissions and discharges, day by day</h2></div><div class="panel chartbox"><h3 class="ct">Admitted and discharged per day, with the patients in beds</h3>${ch2}${legendHtml([["Admitted / upgraded","var(--green)"],["Discharged / downgraded","#D64545"],["Patients in beds","var(--navy)"]])}</div>
+    <h3 class="tbl-title">Admissions, discharges and their ratio · each day</h3>${adT}${brT}`;
+}
+
 /* ---------- Overview ---------- */
 function buAgg(rows){
   const k = ["INP_Rev_Target","INP_Rev_Actual","AMB_Rev_Target","AMB_Rev_Actual","INP_Vol_Target","INP_Vol_Actual","ICU_Target","ICU_Actual","ER_Target","ER_Actual"];
@@ -3974,6 +4068,7 @@ document.addEventListener("click", e=>{
   const pdf = e.target.closest("[data-pdf]");
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
+  const ofk = e.target.closest("[data-ofk]"); if (ofk){ state.ofk=ofk.dataset.ofk; const y=scrollY; render(); scrollTo(0,y); return; }
   const chc = e.target.closest("[data-chc]"); if (chc && !(tourI>=0 && !e.target.closest(".spot"))){ openChDetail(chc.dataset.chc); return; }
   const cs = e.target.closest("[data-cmsel],[data-ntlsel],[data-chsel]");
   if (cs && !(tourI>=0 && !e.target.closest(".spot"))){ const k=cs.dataset.cmsel!=null?"cmSel":cs.dataset.ntlsel!=null?"ntlSel":"chSel", v=cs.dataset.cmsel??cs.dataset.ntlsel??cs.dataset.chsel; state[k]=state[k]===v?null:v; const y=scrollY; render(); scrollTo(0,y); return; }
