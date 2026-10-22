@@ -842,7 +842,7 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 
 let DB = null, SOURCE = {mode:"sample", at:null, error:null};
 const state = {page:"occ", month:null, from:null, to:null, odate:null, obu:"All", olv:"All", och:"All", oq:"",
-  okm:null, okbu:"Group", hob:"All", rchF:null, rchT:null, rchA:"All", rcm:null, rcmM:null, rcmBU:"All", cmSel:null, ntlSel:null, chSel:null, chm:null, ofm:null, ofk:"ER", rnm:null, rnbu:"All", rcbu:"All", rch:null, om:null, obu2:"All", ocm:"All", ogr:"All", ost:"All", oq2:"", iafrom:null, iato:null, iam:null, iareg:"All",
+  okm:null, okbu:"Group", hob:"All", hrun:"mtd", rchF:null, rchT:null, rchA:"All", rcm:null, rcmM:null, rcmBU:"All", cmSel:null, ntlSel:null, chSel:null, chm:null, ofm:null, ofk:"ER", rnm:null, rnbu:"All", rcbu:"All", rch:null, om:null, obu2:"All", ocm:"All", ogr:"All", ost:"All", oq2:"", iafrom:null, iato:null, iam:null, iareg:"All",
   hfrom:null, hto:null, hregion:"All", hch:"All", hmetric:"Revenue", hsm:"Value", hfm:"Value", hq:"", hseg:"All", hshow:100, bu:"All", region:"All", channel:"All", rep:"All", q:"", seg:"all",
   lfrom:null, lto:null, ltf:null, ltt:null,
   lbu:"All", lch:"All", lin:"All", lclean:true, lout:"All", lreason:null, lgrp:null, lservice:"All", lq:"", lshow:100,
@@ -1204,6 +1204,7 @@ function _renderChrome(){
     const src = state.page==="h_trends"?DB.Hist_Channel:state.page==="h_team"?DB.Hist_Sales:state.page==="h_acc"?DB.Hist_Accounts:DB.Hist_FM;
     f += sel("Region","hregion",["All",...uniq(src||[],"Region").sort()]);
     if (state.page!=="h_fm") f += sel("Channel","hch",["All",...sortCh(uniq(src||[],"Channel"))]);
+    if (state.page==="h_trends" && runningMonth()) f += `<label>${monthLabel(runningMonth())}<select data-f="hrun"><option value="mtd" ${(state.hrun||"mtd")==="mtd"?"selected":""}>MTD</option><option value="exp" ${state.hrun==="exp"?"selected":""}>Expected closing</option><option value="hide" ${state.hrun==="hide"?"selected":""}>Hide</option></select></label>`;
     sub = `Historical · ${monthLabel(state.hfrom)} – ${monthLabel(state.hto)} · ${monthsBetween(state.hfrom,state.hto).length} months`;
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, `${mShort(state.hfrom)} – ${mShort(state.hto)} ${state.hto.slice(0,4)} · history`);
@@ -3292,7 +3293,7 @@ function fcCommercial(rows){
   const f=c.frac, el=c.elapsed, days=c.days;
   const cards=[
     fcCard({title:"Expected closing revenue", f:fcBlend(g.Rev_Actual,f,rRev), actual:g.Rev_Actual, target:g.Full_Rev_Target, el, days, cv:cvOf(H("Revenue",hm)), fmtF:fmtC}),
-    fcCard({title:"Expected closing INP admissions", f:fcBlend(g.INP_Vol_Actual,f,rInp), actual:g.INP_Vol_Actual, target:g.Full_INP_Vol_Target, el, days, cv:cvOf(H("INP_Volume",hm)), fmtF:v=>fmtV1(v)}),
+    fcCard({title:"Expected closing INP admissions", f:fcBlend(g.INP_Vol_Actual,f,rInp), actual:g.INP_Vol_Actual, target:g.Full_INP_Vol_Target, el, days, cv:cvOf(H("INP_Volume",hm)), fmtF:v=>fmt(Math.round(v))}),
     fcCard({title:"Expected closing ER requests", f:fcBlend(g.ER_Actual,f,rEr), actual:g.ER_Actual, target:g.Full_ER_Target, el, days, cv:cvOf(H("ER_Volume",hm)), fmtF:v=>fmt(Math.round(v))})];
   return fcStrip(`${monthLabel(m)}${state.bu!=="All"?" · "+esc(state.bu):""}`, el, days, cards);
 }
@@ -3310,7 +3311,7 @@ function fcOccupancy(date, bus){
   const one=b=>{ const x=buOcc(b,date), n=(DB.Occ_Daily||[]).filter(r=>r.BU===b&&r.Date<=date&&cycleKey(parseDate(r.Date))===m).length||el;
     const f=(x.avg*n + x.current*(days-n))/days; return {b,x,f,n}; };
   const L=bus.map(one), F=L.reduce((s,y)=>s+y.f,0), T=L.reduce((s,y)=>s+y.x.target,0), cur=L.reduce((s,y)=>s+y.x.current,0), avg=L.reduce((s,y)=>s+y.x.avg,0);
-  const card=(title,f,t,curv,av)=>`<div class="panel fcc"><span>Expected closing occupancy · ${title}</span><b class="num">${fmtV1(f)} <small style="font-size:13px;color:var(--muted)">patients/day</small></b>
+  const card=(title,f,t,curv,av)=>`<div class="panel fcc"><span>Expected closing occupancy · ${title}</span><b class="num">${fmt(Math.round(f))} <small style="font-size:13px;color:var(--muted)">patients/day</small></b>
     <div class="fcl">${t?`${chip(f/t)} of target ${fmtV1(t)}`:""}</div><div class="fcr num">average so far ${fmtV1(av)} · in care today ${fmt(curv)}</div>
     <div class="fcn">${t&&f<t?`To reach the target the census must average <b>${fmtV1(Math.max((t*days-av*el)/(days-el),0))}</b> for the ${days-el} days left`:t?`<b class="g">On track for the target</b>`:""}</div></div>`;
   const cards=[ ...(L.length>1?[card("All branches",F,T,cur,avg)]:[]), ...L.map(y=>card(y.b,y.f,y.x.target,y.x.current,y.x.avg)) ];
@@ -3650,6 +3651,60 @@ function occFlow(){
     <div class="sec"><h2>Admissions and discharges, day by day</h2></div><div class="panel chartbox"><h3 class="ct">Admitted and discharged per day, with the patients in beds</h3>${ch2}${legendHtml([["Admitted / upgraded","var(--green)"],["Discharged / downgraded","#D64545"],["Patients in beds","var(--navy)"]])}</div>
     <h3 class="tbl-title">Admissions, discharges and their ratio · each day</h3>${adT}${brT}`;
 }
+
+/* ---------- History · Trends: add the running month (MTD so far, or expected closing) ---------- */
+function runningMonth(){ const h=histMonths().at(-1), m=[...new Set((DB.BU_Channel||[]).map(r=>r.Month))].sort().at(-1); return m && (!h || m>h) ? m : null; }
+function runningRows(mode){
+  const m=runningMonth(); if(!m) return [];
+  const rows=(DB.BU_Channel||[]).filter(r=>r.Month===m); if(!rows.length) return [];
+  const fr=rows[0].__frac!=null?rows[0].__frac:cycle(m).frac;
+  const amb=(DB.Occ_Conversion||[]).filter(r=>cycleKey(parseDate(r.Date))===m);
+  const g={};
+  rows.forEach(r=>{ const k=areaOf(r.BU)+"|"+r.Channel, x=g[k]||(g[k]={Month:m,Region:areaOf(r.BU),Channel:r.Channel,Revenue:0,INP_Volume:0,ER_Volume:0,AMB_Volume:0,__run:true});
+    x.Revenue+=(r.INP_Rev_Actual||0)+(r.AMB_Rev_Actual||0); x.INP_Volume+=r.INP_Vol_Actual||0; x.ER_Volume+=r.ER_Actual||0; });
+  // ambulatory cases: the branch totals of the Operational KPIs (same measure as the history), split by channel
+  // with each channel's share in the daily occupancy reports; without the KPI report, the occupancy counts are used as they are
+  const kpi=b=>{ const r=(DB.Ops_KPI||[]).find(x=>x.Month===m&&x.BU===b&&x.KPI==="AMB_Cases"); return r?+r.Actual:null; };
+  const occAmb={}; amb.forEach(r=>{ const k=areaOf(r.BU)+"|"+r.Channel; occAmb[k]=(occAmb[k]||0)+(r.AMB_Cases||0); });
+  ["Alex","Cairo"].forEach(area=>{
+    const bus=BU_ORDER.filter(b=>areaOf(b)===area), kv=bus.map(kpi).filter(v=>v!=null), total=kv.length?kv.reduce((a,b)=>a+b,0):null;
+    const keys=Object.keys(occAmb).filter(k=>k.startsWith(area+"|")), occT=keys.reduce((s,k)=>s+occAmb[k],0);
+    keys.forEach(k=>{ const x=g[k]||(g[k]={Month:m,Region:area,Channel:k.split("|")[1],Revenue:0,INP_Volume:0,ER_Volume:0,AMB_Volume:0,__run:true});
+      x.AMB_Volume = total!=null&&occT ? total*occAmb[k]/occT : occAmb[k]; });
+  });
+  runningRows.ambSource = (DB.Ops_KPI||[]).some(x=>x.Month===m&&x.KPI==="AMB_Cases") ? "kpi" : "occ";
+  const out=Object.values(g);
+  if (mode==="exp" && fr>0 && fr<1){
+    const last3=histMonths().slice(-3);
+    out.forEach(x=>["Revenue","INP_Volume","ER_Volume","AMB_Volume"].forEach(k=>{
+      const rec=last3.length?last3.map(mm=>sum((DB.Hist_Channel||[]).filter(r=>r.Month===mm&&r.Region===x.Region&&r.Channel===x.Channel),k)).reduce((a,b)=>a+b,0)/last3.length:0;
+      const v=fcBlend(x[k],fr,rec); x[k]= k==="Revenue" ? v : Math.round(v); }));
+    // the company totals must equal the Overview forecast exactly: scale the channel × area rows to it
+    ["Revenue","INP_Volume","ER_Volume"].forEach(k=>{
+      const act={Revenue:sum(rows,"INP_Rev_Actual")+sum(rows,"AMB_Rev_Actual"),INP_Volume:sum(rows,"INP_Vol_Actual"),ER_Volume:sum(rows,"ER_Actual")}[k];
+      const rec=last3.length?last3.map(mm=>sum((DB.Hist_Channel||[]).filter(r=>r.Month===mm),k)).reduce((a,b)=>a+b,0)/last3.length:0;
+      const target=fcBlend(act,fr,rec), now=out.reduce((s,x)=>s+(x[k]||0),0);
+      if (target!=null && now>0) out.forEach(x=>{ x[k]=x[k]*target/now; });
+      if (k!=="Revenue"){   // whole numbers that still add up to the (rounded) company total
+        const goal=Math.round(out.reduce((s,x)=>s+(x[k]||0),0)), fl=out.map(x=>Math.floor(x[k]||0)); let left=goal-fl.reduce((a,b)=>a+b,0);
+        out.map((x,i)=>[i,(x[k]||0)-fl[i]]).sort((a,b)=>b[1]-a[1]).forEach(([i])=>{ if(left>0){ fl[i]++; left--; } });
+        out.forEach((x,i)=>{ x[k]=fl[i]; });
+      }
+    });
+  }
+  return out;
+}
+const _hTrendsBase = hTrends;
+hTrends = function(){
+  const mode=state.hrun||"mtd", m=runningMonth();
+  if (mode==="hide" || !m || state.hto<histMonths().at(-1)) return _hTrendsBase();
+  const keepH=DB.Hist_Channel, keepTo=state.hto;
+  DB.Hist_Channel=[...(keepH||[]), ...runningRows(mode)]; state.hto=m;
+  let html; try{ html=_hTrendsBase(); } finally { DB.Hist_Channel=keepH; state.hto=keepTo; }
+  const rows=(DB.BU_Channel||[]).filter(r=>r.Month===m), fr=rows.length&&rows[0].__frac!=null?rows[0].__frac:cycle(m).frac, el=Math.round(fr*cycle(m).days);
+  const note=`<div class="covnote" style="background:#FFF7EA;border-color:#F1D9AE;color:#7A5517"><b>${monthLabel(m)}</b> is still running (day ${el} of ${cycle(m).days}): it is shown as <b>${mode==="exp"?"expected closing":"MTD"}</b>${mode==="exp"?" (current pace blended with the last 3 months)":""}. ${runningRows.ambSource==="kpi"?"Ambulatory cases come from the Operational KPIs, split by channel with the daily occupancy reports.":"Ambulatory cases for it come from the daily occupancy reports."}</div>`;
+  return note + html.replace(new RegExp(`>${mShort(m)}<`,"g"), `>${mShort(m)}${mode==="exp"?" exp.":" MTD"}<`);
+};
 
 /* ---------- Overview ---------- */
 function buAgg(rows){
