@@ -1854,7 +1854,7 @@ function prepOcc(raw){
   const o={};
   for (const t of Object.keys(OCC_TABS)) o[t]=(raw[t]||[]).filter(r=>t==="Occ_Patients"||!isBlankRow(r,OCC_TEXT)).map(r=>{ const x={}; for (const [k,v] of Object.entries(r)){ if(!k) continue; x[k]= OCC_TEXT.has(k) ? String(v??"").trim() : (k!=="Date" && k!=="Admission_Date" && /^\d{4}-\d{2}-\d{2}/.test(String(v))) ? dateTypedNumber(v) : num(v); if(k==="BU") x[k]=fixBU(x[k]); }
     if (x.Date){ const d=parseDate(x.Date); x.Date = d?isoDate(d):""; } if (x.Admission_Date){ const d=parseDate(x.Admission_Date); x.Admission_Date = d?isoDate(d):""; }
-    if ("Month" in x) x.Month = normMonth(x.Month); return x; }).filter(r=>Object.values(r).some(v=>v!==""&&v!==0));
+    if ("Month" in x) x.Month = normMonth(x.Month); return x; }).filter(r=>Object.values(r).some(v=>v!==""&&v!==0)).filter(r=>!(t==="Occ_Daily"||t==="Occ_Conversion")||r.Date);
   // the same branch × channel (or branch × day) entered twice: the row further down the sheet is the newer one
   const keepLast=(rows,key)=>{ const m=new Map(); rows.forEach(r=>m.set(key(r),r)); return [...m.values()]; };
   if (o.Occ_INP) o.Occ_INP = keepLast(o.Occ_INP, r=>[r.Month,r.BU,r.Channel].join("|"));
@@ -3710,6 +3710,11 @@ hTrends = function(){
   return note + html.replace(new RegExp(`>${mShort(m)}<`,"g"), `>${mShort(m)}${mode==="exp"?" exp.":" MTD"}<`);
 };
 
+/* safety net: if a page fails to draw (unexpected data in the sheet), say so instead of leaving the previous page on screen */
+{ const _render = render;
+  render = function(){ try{ _render.apply(this, arguments); }
+    catch(e){ console.error(e); const v=$("#view"); if (v) v.innerHTML=`<div class="panel empty" style="padding:28px">This page couldn't be drawn with the current data.<div class="of" style="margin-top:8px;font-size:12.5px">${esc(String(e&&e.message||e))}</div><div style="margin-top:14px"><button class="btn gold" data-act="home">⌂ Home</button></div></div>`; } };
+}
 /* ---------- Overview ---------- */
 function buAgg(rows){
   const k = ["INP_Rev_Target","INP_Rev_Actual","AMB_Rev_Target","AMB_Rev_Actual","INP_Vol_Target","INP_Vol_Actual","ICU_Target","ICU_Actual","ER_Target","ER_Actual"];
