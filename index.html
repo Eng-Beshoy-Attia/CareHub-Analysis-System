@@ -432,6 +432,8 @@ table.daygrid td.l,table.daygrid th:first-child{text-align:left;min-width:150px;
 
 .tbl-title{font-size:13.5px;font-weight:600;color:var(--navy);margin:16px 2px 8px}
 
+.shg{color:var(--green);font-weight:600}.sha{color:#B5651B;font-weight:600}.shr{color:var(--red);font-weight:600}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -2165,6 +2167,20 @@ function opsCases(){
     <div class="panel tbl-wrap"><table class="leads">${CASE_HEAD}<tbody>${rows.map(caseRow).join("")||`<tr><td class="l of" colspan="9">No cases match</td></tr>`}</tbody></table></div>
     <p class="note">Sorted from the lowest achievement up. "LOS opportunity" is what the stay could have produced according to the length of stay, as in the case-manager report.</p>`;
 }
+/* service charges by month: amount and share of the month's charges, every service category */
+function svcMoneyTbl(all, months, labels){
+  const S=[["Hospitality","Stay (hospitality)"],["Lab","Lab"],["Radiology","Radiology"],["Physiotherapy","Physiotherapy & nutrition"],["Dr_Visit","Doctor visits"],["Devices","Devices"],["Medical_Procedures","Medical procedures"],["Nursing_Procedures","Nursing procedures"],["Medical_Supervision","Medical supervision"],["Ambulance","Ambulance"]];
+  const bmOf=k=>{ const b=(DB.Ops_Benchmark||[]).find(x=>x.Service_Column===k); return b?b.Benchmark:null; };
+  const tot=months.map(m=>sum(all.filter(r=>r.Month===m),"Total_Services")), grand=tot.reduce((a,b)=>a+b,0);
+  const rows=S.filter(([k])=>all.some(r=>r[k])).map(([k,l])=>{
+    const v=months.map(m=>sum(all.filter(r=>r.Month===m),k)), bm=bmOf(k), vt=v.reduce((a,b)=>a+b,0);
+    const cls=sh=>bm==null||sh==null?"":(k==="Hospitality"?(sh<=bm?"shg":"shr"):(sh>=bm*0.9?"shg":sh>=bm*0.5?"sha":"shr"));
+    const cells=v.map((x,i)=>{ const sh=tot[i]?x/tot[i]:null; return x?`<td class="num"><b class="ach">${fmtC(x)}</b><div class="tgt2"><span class="${cls(sh)}">${pctTxt(sh)}</span></div></td>`:`<td class="num"><span class="of">·</span></td>`; }).join("");
+    return `<tr><td class="l name">${l}${bm!=null?`<div class="tgt2">benchmark ${pctTxt(bm)}</div>`:""}</td>${cells}<td class="num"><b>${fmtC(vt)}</b><div class="tgt2">${pctTxt(grand?vt/grand:null)}</div></td></tr>`;
+  }).join("");
+  return `<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Service</th>${labels.map(l=>`<th>${l}</th>`).join("")}<th>Total</th></tr></thead><tbody>${rows}
+    <tr class="total"><td class="l">All services</td>${tot.map(x=>`<td class="num">${fmtC(x)}</td>`).join("")}<td class="num">${fmtC(grand)}</td></tr></tbody></table></div>`;
+}
 function opsHist(){
   const months=opsMonths(); if(!months.length) return `<div class="panel empty">No operation history yet.</div>`;
   const all=(DB.Ops_Cases||[]).filter(r=>state.obu2==="All"||r.BU===state.obu2), labels=months.map(m=>mShort(m)+(parseDate(opsAsOf(m))<cycle(m).end?"*":""));
@@ -2184,6 +2200,7 @@ function opsHist(){
     <div class="two" style="margin-top:14px"><div class="panel chartbox"><h3 class="ct">Charge per case <small style="font-weight:400">(achievement × avg target per case)</small></h3>${cp}${legendHtml([["Charge per case","var(--navy)"],["Avg target per case","var(--gold)"]])}</div>
     <div class="panel chartbox"><h3 class="ct">Charge per patient-day</h3>${pd}</div></div>
     <div class="panel chartbox" style="margin-top:14px"><h3 class="ct">Service mix by month (share of charges)</h3>${ut}${legendHtml(bm.map((b,i)=>[b.Category,["var(--navy)","var(--gold)","#7FA6CF","#3E8E7E","#9B6FB0"][i%5]]))}</div>
+    <h3 class="tbl-title">Service charges by month${state.obu2!=="All"?" · "+esc(state.obu2):""}</h3>${svcMoneyTbl(all, months, labels)}
     <div class="sec"><h2>Case managers by month</h2><p>Achievement against MTD target</p></div>`+
     pmGrid(all, r=>r.Case_Manager, x=>`<span class="name">${esc(x.rs[0].Case_Manager)}</span><span class="tag">${BU_ORDER.filter(b=>x.rs.some(r=>r.BU===b)).join(" → ")}</span>`, "MTD_Target","Actual_Charge", months, null);
 }
@@ -3169,7 +3186,7 @@ async function doLogout(){
 function dbFromApi(tabs){ API_TABS=tabs||{}; DB=tabsToDB(API_TABS); }
 function tabsToDB(TT){
   const keep=DB; let DBx;
-  const A=n=>TT[n]||[], O=n=>{ const a=A(n); if(!a.length) return []; const [h,...b]=a; const H=h.map(x=>String(x??"").trim()); return b.map(r=>Object.fromEntries(H.map((k,i)=>[k, r[i]??""]))); };
+  const A=n=>TT[n]||[], O=n=>{ const a=A(n); if(!a.length) return []; const [h,...b]=a; const H=h.map(x=>String(x??"").trim()).map((k,i)=> k || (b.slice(0,50).filter(r=>r[i]!==""&&r[i]!=null).length && b.slice(0,50).filter(r=>r[i]!==""&&r[i]!=null).every(r=>/^\d{4}-\d{2}/.test(String(r[i]))) ? "Month" : k)); /* a header cell wiped by mistake (e.g. "Month" overwritten by a space) is recognised from its values */ return b.map(r=>Object.fromEntries(H.map((k,i)=>[k, r[i]??""]))); };
   DB=prep(Object.fromEntries(TABS.map(t=>[t,O(t)]))); applyMTD(DB);   // applyMTD / buildLeads read the global DB
   DB.Leads=buildLeads(Object.fromEntries(LEAD_TABS.map(t=>[t, A(t).length?A(t).map(r=>r.map(c=>c==null?"":String(c))):null])));
   Object.assign(DB, prepOcc(Object.fromEntries(Object.keys(OCC_TABS).map(t=>[t,O(t)])))); DB.__occSample=false;
@@ -3732,7 +3749,7 @@ function overview(){
   let rows = inMonth(DB.BU_Channel);
   const allBU = rows;
   if (state.bu!=="All") rows = rows.filter(r=>r.BU===state.bu);
-  if (!rows.length) return `<div class="panel empty">The BU_Channel tab has no rows for this month.</div>`;
+  if (!rows.length){ const lm=latestWith("BU_Channel"); return `<div class="panel empty">${periodLabel()} has no business-unit report in the sheet yet${(DB.Accounts||[]).some(r=>inRange(r.Month))?" (the sales-team pages already have its accounts)":""}.${lm?`<div style="margin-top:14px"><button class="btn gold" data-gomonth="${lm}">Show ${monthLabel(lm)}</button></div>`:""}</div>`; }
   const g = buAgg(rows);
   const pp = prevPeriod(); const prevRows = (DB.BU_Channel||[]).filter(r=>inRange(r.Month,pp[0],pp[1])).filter(r=>state.bu==="All"||r.BU===state.bu);
   const prev = prevRows.length ? buAgg(prevRows) : null;
