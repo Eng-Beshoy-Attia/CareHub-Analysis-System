@@ -901,7 +901,7 @@ function cycle(monthKey){
   const asOfRaw = setting("as_of_date");
   const asOf = (asOfRaw && parseDate(asOfRaw)) || new Date();
   asOf.setHours(0,0,0,0);
-  let elapsed = Math.floor((asOf-start)/864e5)+1;
+  let elapsed = Math.round((asOf-start)/864e5)+1;
   elapsed = Math.max(0, Math.min(days, elapsed));
   return {start, end, days, elapsed, frac: elapsed/days, asOf};
 }
@@ -1869,7 +1869,7 @@ const occBU = r => state.obu==="All" || r.BU===state.obu;
 function fracAt(monthKey, dateIso){
   const [y,m]=monthKey.split("-").map(Number); const sd=num(setting("cycle_start_day"))||26;
   const st=new Date(y,m-2,sd), en=new Date(y,m-1,sd-1), d=parseDate(dateIso);
-  const days=Math.round((en-st)/864e5)+1; let el=Math.floor((d-st)/864e5)+1; return Math.max(0,Math.min(1,el/days));
+  const days=Math.round((en-st)/864e5)+1; let el=Math.round((d-st)/864e5)+1;   /* round, not floor: a day is 23 or 25 hours when the clocks change */ return Math.max(0,Math.min(1,el/days));
 }
 function beds(cap, fills){ // fills: [[count,color],...]
   let html="", n=0;
@@ -2010,7 +2010,7 @@ function occConvTrend(date){
   const rate=chart({labels,h:260,yMax:60,lines:K.filter(k=>k[4]!=null).map(([l,c,ik,col])=>({name:l+" conversion (7-day)",color:col,values:roll(S(ik),S(c))})).concat([{name:"ER benchmark 40%",color:"#D64545",values:days.map(()=>40),dash:"3 4",noDots:true},{name:"Ambulatory benchmark 10%",color:"#B5651B",values:days.map(()=>10),dash:"3 4",noDots:true}]),fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":v.toFixed(1)+"%"});
   // per cycle and per week
   const cyc=[...new Set(days.map(d=>cycleKey(parseDate(d))))];
-  const row=(lab,rs,nd)=>`<tr><td class="l name">${lab}</td>${K.map(([l,c,ik,,bm])=>{const n=sum(rs,c),i=sum(rs,ik); return `<td class="num"><b class="ach">${fmt(n)}</b> <span class="of">${fmtV1(nd?n/nd:0)}/day</span></td><td class="num">${fmt(i)} ${bm?chip(n?i/n/bm:null):""} <span class="of">${pctTxt(n?i/n:null)}</span></td>`;}).join("")}</tr>`;
+  const row=(lab,rs,nd)=>`<tr><td class="l name">${lab}</td>${K.map(([l,c,ik,,bm])=>{const n=sum(rs,c),i=sum(rs,ik); return `<td class="num"><b class="ach">${fmt(n)}</b> <span class="of">${fmtV1(nd?n/nd:0)}/day</span></td><td class="num">${fmt(i)} ${bm?convChip(i,n,bm):`<span class="of">${pctTxt(n?i/n:null)}</span>`}</td>`;}).join("")}</tr>`;
   const cycT=`<div class="panel tbl-wrap"><table><thead><tr><th>Cycle</th>${K.map(([l])=>`<th>${l} cases</th><th>${l} → INP</th>`).join("")}</tr></thead><tbody>
     ${cyc.map(m=>{const ds=days.filter(d=>cycleKey(parseDate(d))===m); return row(`${monthLabel(m)}${cycle(m).end>parseDate(date)?" (so far)":""} · ${ds.length} days`,all.filter(r=>ds.includes(r.Date)),ds.length);}).join("")}</tbody></table></div>`;
   const tr=k=>trendOf(S(k)), badge=(l,k)=>`<span style="margin-right:10px">${l}: ${vBadge(tr(k)).replace(/\/mo/g,"/day")}</span>`;
@@ -2643,7 +2643,7 @@ function opsConv(){
      [pctOrDash(amL&&amL.cases?amL.inp/amL.cases:null),"ambulatory conversion (benchmark 10%)"],[amL?`${fmt(amL.inp)} / ${fmt(amL.cases)}`:"—","ambulatory patients admitted"]]);
   const line=(kind,bm)=>chart({labels:months.map(mShort),w:560,h:260,yMax:kind==="ER"?70:30,lines:[...bus.map(b=>({name:b,color:BR_COL[b],values:months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?x.inp/x.cases*100:null;})})),{name:"Benchmark",color:"#D64545",values:months.map(()=>bm),dash:"3 4",noDots:true}],fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":v.toFixed(1)+"%"});
   const tbl=(kind,bm)=>`<div class="panel tbl-wrap"><table class="grid"><thead><tr><th>${kind==="ER"?"ER":"Ambulatory"}</th>${months.map(m=>`<th>${mShort(m)}</th>`).join("")}</tr></thead><tbody>
-    ${bus.map(b=>`<tr><td class="l name">${b}</td>${months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?`<td>${chip(x.inp/x.cases/bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)} · ${pctTxt(x.inp/x.cases)}</div></td>`:'<td class="of">·</td>';}).join("")}</tr>`).join("")}</tbody></table></div>`;
+    ${bus.map(b=>`<tr><td class="l name">${b}</td>${months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?`<td>${convChip(x.inp,x.cases,bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)}</div></td>`:'<td class="of">·</td>';}).join("")}</tr>`).join("")}</tbody></table></div>`;
   // daily conversion by channel from the occupancy reports (current cycle)
   const od=(DB.Occ_Conversion||[]).filter(r=>bus.includes(r.BU)), om=od.length?cycleKey(parseDate(od.map(r=>r.Date).sort().at(-1))):null;
   const cyc=od.filter(r=>om&&cycleKey(parseDate(r.Date))===om), chs=sortCh(uniq(cyc,"Channel"));
@@ -2834,13 +2834,13 @@ function convReport(kind){
       <div><b class="num">${nps?(+nps.Actual).toFixed(1):"—"}</b>NPS (of 10)</div><div><b class="num">${months.length}</b>months of history</div></div></section>`;
   const line=chart({labels:months.map(mShort),h:270,yMax:kind==="ER"?70:30,lines:[...bus.map(b=>({name:b,color:BR_COL[b],values:months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?x.inp/x.cases*100:null;})})),{name:"Benchmark",color:"#D64545",values:months.map(()=>bm*100),dash:"3 4",noDots:true}],fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":v.toFixed(1)+"%"});
   const tbl=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Branch</th>${months.map(m=>`<th>${mShort(m)}</th>`).join("")}</tr></thead><tbody>
-    ${bus.map(b=>`<tr><td class="l name">${b}</td>${months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?`<td>${chip(x.inp/x.cases/bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)} · ${pctTxt(x.inp/x.cases)}</div></td>`:'<td class="of">·</td>';}).join("")}</tr>`).join("")}
+    ${bus.map(b=>`<tr><td class="l name">${b}</td>${months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?`<td>${convChip(x.inp,x.cases,bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)}</div></td>`:'<td class="of">·</td>';}).join("")}</tr>`).join("")}
     <tr class="total"><td class="l">Total</td>${months.map(m=>{const x=tot(m); return x&&x.cases?`<td>${fmt(x.inp)} / ${fmt(x.cases)} · ${pctTxt(x.inp/x.cases)}</td>`:"<td></td>";}).join("")}</tr></tbody></table></div>`;
   const od=(DB.Occ_Conversion||[]).filter(r=>bus.includes(r.BU)), om=od.length?cycleKey(parseDate(od.map(r=>r.Date).sort().at(-1))):null;
   const cyc=od.filter(r=>om&&cycleKey(parseDate(r.Date))===om), ck=kind==="ER"?["ER_Cases","ER_INP"]:["AMB_Cases","AMB_INP"];
   const chs=sortCh(uniq(cyc.filter(r=>r[ck[0]]),"Channel"));
   const chT=chs.length?`<div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th><th>${label} patients</th><th>Admitted to INP</th><th>Conversion</th>${kind==="AMB"?"<th>Assessment visits</th><th>Assessment → INP</th>":""}</tr></thead><tbody>
-    ${chs.map(c=>{const r=cyc.filter(x=>x.Channel===c), n=sum(r,ck[0]), i=sum(r,ck[1]); return `<tr><td class="l name"><i class="sw" style="background:${chColor(c)}"></i>${esc(c)}</td><td class="num"><b class="ach">${fmt(n)}</b></td><td class="num">${fmt(i)}</td><td>${chip(n?i/n/bm:null)} <span class="of">${pctTxt(n?i/n:null)}</span></td>
+    ${chs.map(c=>{const r=cyc.filter(x=>x.Channel===c), n=sum(r,ck[0]), i=sum(r,ck[1]); return `<tr><td class="l name"><i class="sw" style="background:${chColor(c)}"></i>${esc(c)}</td><td class="num"><b class="ach">${fmt(n)}</b></td><td class="num">${fmt(i)}</td><td>${convChip(i,n,bm)}</td>
       ${kind==="AMB"?`<td class="num">${fmt(sum(r,"Assess_Cases"))}</td><td class="num">${fmt(sum(r,"Assess_INP"))}</td>`:""}</tr>`;}).join("")}</tbody></table></div>`:"";
   let svc="";
   if (kind==="AMB"){ const opd=(DB.Ops_OPD||[]).filter(r=>bus.includes(r.BU)), opdM=[...new Set(opd.map(r=>r.Month))].sort().at(-1), op=opd.filter(r=>r.Month===opdM);
@@ -2971,20 +2971,20 @@ function convReport(kind){
         <div><b class="num">${charge?fmtC(charge.Actual):"—"}</b><span>charge / case${charge&&charge.Target?` · target ${fmtC(charge.Target)}`:""}</span></div><div><b class="num">${nps?(+nps.Actual).toFixed(1):"—"}</b><span>NPS of 10</span></div></div></div>
     <div class="sc-tbl"><table><thead><tr><th>Branch</th><th>Patients</th><th>Admitted</th><th>Conversion</th><th>Short</th><th>Charge / case</th><th>NPS</th></tr></thead><tbody>
       ${brRows.map(r=>`<tr><td class="l name"><i class="sw" style="background:${BR_COL[r.b]}"></i>${r.b}</td><td class="num">${fmt(r.x.cases)}</td><td class="num"><b class="ach">${fmt(r.x.inp)}</b></td>
-        <td>${chip(r.x.cases?r.x.inp/r.x.cases/bm:null)} <span class="of">${pctTxt(r.x.cases?r.x.inp/r.x.cases:null)}</span></td><td class="num">${fmt(Math.max(Math.round(r.x.cases*bm-r.x.inp),0))}</td>
+        <td>${convChip(r.x.inp,r.x.cases,bm)}</td><td class="num">${fmt(Math.max(Math.round(r.x.cases*bm-r.x.inp),0))}</td>
         <td class="num">${r.ch?fmtC(r.ch.Actual):"—"}</td><td class="num">${r.np?(+r.np.Actual).toFixed(1):"—"}</td></tr>`).join("")}
-      ${brRows.length>1?`<tr class="total"><td class="l">Total</td><td class="num">${fmt(L.cases)}</td><td class="num">${fmt(L.inp)}</td><td>${chip(conv!=null?conv/bm:null)} <span class="of">${pctTxt(conv)}</span></td><td class="num">${fmt(Math.max(Math.round(L.cases*bm-L.inp),0))}</td><td class="num">${charge?fmtC(charge.Actual):"—"}</td><td class="num">${nps?(+nps.Actual).toFixed(1):"—"}</td></tr>`:""}</tbody></table></div></section>`;
+      ${brRows.length>1?`<tr class="total"><td class="l">Total</td><td class="num">${fmt(L.cases)}</td><td class="num">${fmt(L.inp)}</td><td>${convChip(L.inp,L.cases,bm)}</td><td class="num">${fmt(Math.max(Math.round(L.cases*bm-L.inp),0))}</td><td class="num">${charge?fmtC(charge.Actual):"—"}</td><td class="num">${nps?(+nps.Actual).toFixed(1):"—"}</td></tr>`:""}</tbody></table></div></section>`;
   const line=chart({labels:months.map(mShort),h:270,yMax:kind==="ER"?70:30,lines:[...bus.map(b=>({name:b,color:BR_COL[b],values:months.map(m=>{const x=convAt(m,b,kind); return x&&x.cases?x.inp/x.cases*100:null;})})),{name:"Benchmark",color:"#D64545",values:months.map(()=>bm*100),dash:"3 4",noDots:true}],fmtY:v=>Math.round(v)+"%",tipFmt:v=>v==null?"—":v.toFixed(1)+"%"});
   const tbl=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Branch</th>${months.map(m=>`<th>${mShort(m)}</th>`).join("")}</tr></thead><tbody>
-    ${bus.map(b=>`<tr><td class="l name">${b}</td>${months.map(m=>{const x=convAt(m,b,kind); if(!opened(b,m)) return '<td class="of">not open</td>'; return x&&x.cases?`<td>${chip(x.inp/x.cases/bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)} · ${pctTxt(x.inp/x.cases)}</div></td>`:'<td class="of">no report</td>';}).join("")}</tr>`).join("")}
-    ${bus.length>1?`<tr class="total"><td class="l">Total</td>${months.map(m=>{const x=tot(m); return x&&x.cases?`<td>${chip(x.inp/x.cases/bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)} · ${pctTxt(x.inp/x.cases)}${x.n<x.of?` · ${x.n} of ${x.of} branches`:""}</div></td>`:"<td></td>";}).join("")}</tr>`:""}</tbody></table></div>`;
+    ${bus.map(b=>`<tr><td class="l name">${b}</td>${months.map(m=>{const x=convAt(m,b,kind); if(!opened(b,m)) return '<td class="of">not open</td>'; return x&&x.cases?`<td>${convChip(x.inp,x.cases,bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)}</div></td>`:'<td class="of">no report</td>';}).join("")}</tr>`).join("")}
+    ${bus.length>1?`<tr class="total"><td class="l">Total</td>${months.map(m=>{const x=tot(m); return x&&x.cases?`<td>${convChip(x.inp,x.cases,bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)}${x.n<x.of?` · ${x.n} of ${x.of} branches`:""}</div></td>`:"<td></td>";}).join("")}</tr>`:""}</tbody></table></div>`;
   const od=(DB.Occ_Conversion||[]).filter(r=>bus.includes(r.BU)), om=od.length?cycleKey(parseDate(od.map(r=>r.Date).sort().at(-1))):null;
   const cyc=od.filter(r=>om&&cycleKey(parseDate(r.Date))===om), ck=kind==="ER"?["ER_Cases","ER_INP"]:["AMB_Cases","AMB_INP"];
   const chs=sortCh(uniq(cyc.filter(r=>r[ck[0]]),"Channel"));
   const chT=chs.length?`<div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th><th>${label} patients</th><th>Admitted to INP</th><th>Conversion</th>${kind==="AMB"?"<th>Assessment visits</th><th>Assessment → INP</th>":""}</tr></thead><tbody>
-    ${chs.map(c=>{const r=cyc.filter(x=>x.Channel===c), n=sum(r,ck[0]), i=sum(r,ck[1]); return `<tr><td class="l name"><i class="sw" style="background:${chColor(c)}"></i>${esc(c)}</td><td class="num"><b class="ach">${fmt(n)}</b></td><td class="num">${fmt(i)}</td><td>${chip(n?i/n/bm:null)} <span class="of">${pctTxt(n?i/n:null)}</span></td>
+    ${chs.map(c=>{const r=cyc.filter(x=>x.Channel===c), n=sum(r,ck[0]), i=sum(r,ck[1]); return `<tr><td class="l name"><i class="sw" style="background:${chColor(c)}"></i>${esc(c)}</td><td class="num"><b class="ach">${fmt(n)}</b></td><td class="num">${fmt(i)}</td><td>${convChip(i,n,bm)}</td>
       ${kind==="AMB"?`<td class="num">${fmt(sum(r,"Assess_Cases"))}</td><td class="num">${fmt(sum(r,"Assess_INP"))}</td>`:""}</tr>`;}).join("")}
-    ${(()=>{const n=sum(cyc,ck[0]), i=sum(cyc,ck[1]); return `<tr class="total"><td class="l">Total</td><td class="num">${fmt(n)}</td><td class="num">${fmt(i)}</td><td>${chip(n?i/n/bm:null)} <span class="of">${pctTxt(n?i/n:null)}</span></td>${kind==="AMB"?`<td class="num">${fmt(sum(cyc,"Assess_Cases"))}</td><td class="num">${fmt(sum(cyc,"Assess_INP"))}</td>`:""}</tr>`;})()}</tbody></table></div>`:"";
+    ${(()=>{const n=sum(cyc,ck[0]), i=sum(cyc,ck[1]); return `<tr class="total"><td class="l">Total</td><td class="num">${fmt(n)}</td><td class="num">${fmt(i)}</td><td>${convChip(i,n,bm)}</td>${kind==="AMB"?`<td class="num">${fmt(sum(cyc,"Assess_Cases"))}</td><td class="num">${fmt(sum(cyc,"Assess_INP"))}</td>`:""}</tr>`;})()}</tbody></table></div>`:"";
   let svc="";
   if (kind==="AMB"){ const opd=(DB.Ops_OPD||[]).filter(r=>bus.includes(r.BU)), opdM=[...new Set(opd.map(r=>r.Month))].sort().at(-1), op=opd.filter(r=>r.Month===opdM);
     if(op.length){ const P=sum(op,"Patients"),Cv=sum(op,"Actual_Conv"),Tc=sum(op,"Target_Conv");
@@ -3091,8 +3091,8 @@ function histConv(){
     return `<div class="sec"><h2>${lab}</h2>${ptsBadge(T,false)}</div>
       <div class="two"><div class="panel chartbox"><h3 class="ct">${lab} patients by month (bars) and admitted to INP (line)</h3>${vol}</div><div class="panel chartbox"><h3 class="ct">Conversion to INP vs ${Math.round(bm*100)}%</h3>${rt}</div></div>
       <div class="panel tbl-wrap keep" style="margin-top:12px"><table class="grid"><thead><tr><th>${lab}</th>${ms.map(m=>`<th>${mShort(m)}</th>`).join("")}</tr></thead><tbody>
-      ${bus.map(b=>`<tr><td class="l name">${b}</td>${ms.map(m=>{const x=convAt(m,b,kind); if(b==="Mohandessen"&&m<MNH_START) return '<td class="of">not open</td>'; return x&&x.cases?`<td>${chip(x.inp/x.cases/bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)} · ${pctTxt(x.inp/x.cases)}</div></td>`:'<td class="of">no report</td>';}).join("")}</tr>`).join("")}
-      <tr class="total"><td class="l">Total</td>${ms.map(m=>{const x=tot(m); return x&&x.c?`<td>${chip(x.i/x.c/bm)}<div class="tgt2">${fmt(x.i)} of ${fmt(x.c)} · ${pctTxt(x.i/x.c)}</div></td>`:"<td></td>";}).join("")}</tr>
+      ${bus.map(b=>`<tr><td class="l name">${b}</td>${ms.map(m=>{const x=convAt(m,b,kind); if(b==="Mohandessen"&&m<MNH_START) return '<td class="of">not open</td>'; return x&&x.cases?`<td>${convChip(x.inp,x.cases,bm)}<div class="tgt2">${fmt(x.inp)} of ${fmt(x.cases)}</div></td>`:'<td class="of">no report</td>';}).join("")}</tr>`).join("")}
+      <tr class="total"><td class="l">Total</td>${ms.map(m=>{const x=tot(m); return x&&x.c?`<td>${convChip(x.i,x.c,bm)}<div class="tgt2">${fmt(x.i)} of ${fmt(x.c)}</div></td>`:"<td></td>";}).join("")}</tr>
       ${ch.some(v=>v!=null)?`<tr><td class="l name">Charge per case</td>${ch.map(v=>`<td class="num">${v!=null?fmtC(v):'<span class="of">·</span>'}</td>`).join("")}</tr>`:""}</tbody></table></div>`;
   };
   return block("ER",0.4)+block("AMB",0.1);
@@ -3349,7 +3349,7 @@ function fcLeads(rows){
   const wd=Array(7).fill(0), wn=Array(7).fill(0); const seen=new Set();
   hist.forEach(l=>{ wd[l.date.getDay()]++; const k=l.date.toDateString(); if(!seen.has(k)){ seen.add(k); wn[l.date.getDay()]++; } });
   const wAvg=wd.map((v,i)=>wn[i]?v/wn[i]:0), base=wAvg.reduce((a,b)=>a+b,0)/7||1, wt=wAvg.map(v=>v/base||1);
-  let wEl=0, wRem=0; for(let i=0;i<days;i++){ const d=new Date(cs.getTime()+i*864e5); (i<el?(wEl+=wt[d.getDay()]):(wRem+=wt[d.getDay()])); }
+  let wEl=0, wRem=0; for(let i=0;i<days;i++){ const d=new Date(cs.getFullYear(),cs.getMonth(),cs.getDate()+i); (i<el?(wEl+=wt[d.getDay()]):(wRem+=wt[d.getDay()])); }
   const o=outCounts(rows), k=wEl?1/wEl:0, proj=x=>x + x*k*wRem;
   const prevM=leadMonths().filter(x=>x<m).at(-1), pr=prevM?outCounts((DB.Leads||[]).filter(l=>l.Month===prevM&&!l.nonLead)):null;
   const card=(title,a,prev)=>{ const f=proj(a); return `<div class="panel fcc"><span>${title}</span><b class="num">${fmt(Math.round(f))}</b>
@@ -3378,7 +3378,7 @@ function fcConv(kind, lm, bus, tot){
   return fcStrip(`${monthLabel(lm)}`, el, days, [
     fcCard({title:`Expected closing ${lab} patients`, f:fc, actual:L.cases, target:0, el, days, fmtF:v=>fmt(Math.round(v)), note:"no target"}),
     fcCard({title:"Expected closing admissions to INP", f:fi, actual:L.inp, target:fc*bm, el, days, fmtF:v=>fmt(Math.round(v))}),
-    `<div class="panel fcc"><span>Expected closing conversion</span><b class="num">${pctTxt(fc?fi/fc:null)}</b><div class="fcl">${chip(fc?fi/fc/bm:null)} of the ${Math.round(bm*100)}% benchmark</div><div class="fcr num">${fmt(Math.round(Math.max(fc*bm-fi,0)))} admissions short at this pace</div><div class="fcn"></div></div>`]);
+    `<div class="panel fcc"><span>Expected closing conversion</span><b class="num">${pctTxt(fc?fi/fc:null)}</b><div class="fcl">${convChip(fi,fc,bm)} benchmark ${Math.round(bm*100)}%</div><div class="fcr num">${fmt(Math.round(Math.max(fc*bm-fi,0)))} admissions short at this pace</div><div class="fcn"></div></div>`]);
 }
 
 /* ============================================================
@@ -3613,7 +3613,8 @@ function occFlow(){
   const m=state.ofm, c=cycle(m), inC=d=>cycleKey(parseDate(d))===m;
   const conv=(DB.Occ_Conversion||[]).filter(r=>inC(r.Date)&&occBU(r)), daily=(DB.Occ_Daily||[]).filter(r=>inC(r.Date)&&occBU(r));
   const lastDay=[...conv.map(r=>r.Date),...daily.map(r=>r.Date)].sort().at(-1); if(!lastDay) return occBanner()+`<div class="panel empty">No daily reports for ${monthLabel(m)}${state.obu!=="All"?" · "+esc(state.obu):""}.</div>`;
-  const days=[]; for(let d=new Date(c.start); d<=parseDate(lastDay); d=new Date(d.getTime()+864e5)) days.push(isoDate(d));
+  // step by calendar day, not by 24 hours: on the night the clocks go back (29 Oct) 24 hours would land on the same date twice
+  const days=[]; { const end=isoDate(parseDate(lastDay)); for(let d=new Date(c.start.getFullYear(),c.start.getMonth(),c.start.getDate()); isoDate(d)<=end; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)) days.push(isoDate(d)); }
   const first=conv.length?conv.map(r=>r.Date).sort()[0]:null;
   const chs=chOrder([...new Set(conv.map(r=>r.Channel))]);
   const S=(rows,k)=>sum(rows,k);
