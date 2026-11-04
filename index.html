@@ -439,6 +439,8 @@ table.daygrid td.l,table.daygrid th:first-child{text-align:left;min-width:150px;
 .gf select{font:inherit;font-size:12.5px;text-transform:none;letter-spacing:0;padding:6px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0E345C;color:#fff}
 #moreSheet .gf{background:#F1F4F8}#moreSheet .gf label{color:var(--muted)}#moreSheet .gf select{background:#fff;color:var(--navy);border-color:var(--line)}
 
+.mcards .mcard .vb{white-space:normal;max-width:100%}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -1143,7 +1145,7 @@ function _renderChrome(){
     renderMobile(page, sub.replace("Informative analysis · ","")); return;
   }
   if (state.page==="ops_svc"){
-    f = sel("Business unit","hob",["All",...cityBUs()]);
+    f = `${(state.page==="hist_svc"||state.page==="ops_svc")?(()=>{ const sm=svcMonths(); if(!sm.includes(state.svT)) state.svT=sm.at(-1); if(!sm.includes(state.svF)||state.svF>state.svT) state.svF=sm[0]; return `<label>From<select data-f="svF">${sm.map(x=>`<option value="${x}" ${x===state.svF?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label><label>To<select data-f="svT">${sm.map(x=>`<option value="${x}" ${x===state.svT?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label>`; })():""}` + sel("Business unit","hob",["All",...cityBUs()]);
     sub = `Operation · service lines · ${state.hob==="All"?(state.city&&state.city!=="All"?state.city:"all branches"):state.hob}`;
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("Operation · ","")); return;
@@ -1162,8 +1164,8 @@ function _renderChrome(){
     renderMobile(page, page.label); return;
   }
   if (["hist_kpi","hist_conv","hist_los","hist_svc"].includes(state.page)){
-    f = sel("Business unit","hob",["All",...cityBUs()]);
-    sub = `History · Operation · ${state.hob==="All"?"all branches":state.hob}`;
+    f = `${(state.page==="hist_svc"||state.page==="ops_svc")?(()=>{ const sm=svcMonths(); if(!sm.includes(state.svT)) state.svT=sm.at(-1); if(!sm.includes(state.svF)||state.svF>state.svT) state.svF=sm[0]; return `<label>From<select data-f="svF">${sm.map(x=>`<option value="${x}" ${x===state.svF?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label><label>To<select data-f="svT">${sm.map(x=>`<option value="${x}" ${x===state.svT?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label>`; })():""}` + sel("Business unit","hob",["All",...cityBUs()]);
+    sub = `History · Operation · ${state.hob==="All"?"all branches":state.hob}${state.page==="hist_svc"&&state.svF?` · ${monthLabel(state.svF)} – ${monthLabel(state.svT)}`:""}`;
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("History · ","")); return;
   }
@@ -3800,38 +3802,75 @@ try{ const s=JSON.parse(localStorage.getItem("carehub_gf")||"{}"); state.city=s.
    OPERATION HISTORY · SERVICE LINES (ER, Rad, Lab, Dr visit, Physiotherapy, Nursing, Dialysis, Ambulance…)
    ============================================================ */
 const SVC_MEASURES = [["Patients","Patients"],["Requests","Requests"],["Total_Charge","Charges"],["per","Charge per patient"],["Conversions","Converted to INP"]];
-function svcRows(){ return (DB.Ops_Service_Lines||[]).filter(r=>hBus().includes(r.BU)); }
+const svcMonths = () => [...new Set((DB.Ops_Service_Lines||[]).filter(r=>hBus().includes(r.BU)).map(r=>r.Month))].filter(Boolean).sort();
+function svcRows(all){ const sm=svcMonths(); if(!sm.includes(state.svT)) state.svT=sm.at(-1); if(!sm.includes(state.svF)||state.svF>state.svT) state.svF=sm[0];
+  return (DB.Ops_Service_Lines||[]).filter(r=>hBus().includes(r.BU)&&(all||(r.Month>=state.svF&&r.Month<=state.svT))); }
+/* ============================================================
+   SERVICE LINES · same layout as History → Trends
+   ============================================================ */
+const SVC_M = {Patients:["Patients",false], Requests:["Requests",false], Total_Charge:["Charges",true], per:["Charge per patient",true], Conversions:["Converted to INP",false]};
+const SVC_COLORS = ["#0B2C4F","#E9A45F","#3E8E7E","#9B6FB0","#D64545","#7FA6CF","#B5651B","#5B6B80","#2F9E6E","#C9A227","#8E5B3C"];
 function histSvc(){
-  const R=svcRows(); if(!R.length) return `<div class="panel empty">No service-line data yet. Add the Ops_Service_Lines tab to the sheet.</div>`;
-  const ms=[...new Set(R.map(r=>r.Month))].sort(), secs=[...new Set(R.map(r=>r.Section))].sort((a,b)=>sum(R.filter(r=>r.Section===b),"Total_Charge")-sum(R.filter(r=>r.Section===a),"Total_Charge"));
-  const K=state.svk||"Total_Charge", lm=ms.at(-1), pm=ms.at(-2);
-  const agg=rs=>({p:sum(rs,"Patients"),q:sum(rs,"Requests"),c:sum(rs,"Total_Charge"),v:sum(rs.filter(r=>r.Conversions!==""&&r.Conversions!=null),"Conversions")});
-  const val=(rs)=>{ const a=agg(rs); return K==="per"?(a.p?a.c/a.p:null):K==="Patients"?a.p:K==="Requests"?a.q:K==="Conversions"?a.v:a.c; };
-  const fmtK=v=>v==null?"—":(K==="Total_Charge"||K==="per")?fmtC(v):fmt(Math.round(v));
-  const L=agg(R.filter(r=>r.Month===lm)), P=pm?agg(R.filter(r=>r.Month===pm)):null;
-  const delta=(a,b)=>b?`<span class="dl ${a>=b?"up":"down"}">${a>=b?"▲":"▼"} ${Math.abs(Math.round((a-b)/b*100))}%</span>`:"";
-  const card=(lab,v,pv,f)=>`<div class="panel kcard"><span>${lab}</span><b class="num">${f(v)}</b><small>${pv!=null?`vs ${mShort(pm)}: ${delta(v,pv)}`:""}</small></div>`;
+  const R0=svcRows(); if(!R0.length) return `<div class="panel empty">No service-line data yet. Add the Ops_Service_Lines tab to the sheet.</div>`;
+  const sel=state.svsec&&R0.some(r=>r.Section===state.svsec)?state.svsec:null; if(!sel) state.svsec=null;
+  const R=sel?R0.filter(r=>r.Section===sel):R0;
+  const months=[...new Set(R0.map(r=>r.Month))].sort(), labels=months.map(mShort);
+  const allSecs=[...new Set(R0.map(r=>r.Section))].sort((a,b)=>sum(R0.filter(r=>r.Section===b),"Total_Charge")-sum(R0.filter(r=>r.Section===a),"Total_Charge"));
+  const secColor=s=>SVC_COLORS[allSecs.indexOf(s)%SVC_COLORS.length];
+  const mk=SVC_M[state.svk]?state.svk:"Total_Charge", [mLabel,money]=SVC_M[mk], F=v=>fmtM(v,money);
+  const agg=rs=>({Patients:sum(rs,"Patients"),Requests:sum(rs,"Requests"),Total_Charge:sum(rs,"Total_Charge"),Conversions:sum(rs.filter(r=>r.Conversions!==""&&r.Conversions!=null),"Conversions")});
+  const val=(rs,k)=>{ const a=agg(rs); return k==="per"?(a.Patients?a.Total_Charge/a.Patients:0):a[k]; };
+  const series=(rs,k)=>months.map(m=>val(rs.filter(r=>r.Month===m),k));
+  const total=(rs,k)=> k==="per" ? val(rs,"per") : series(rs,k).reduce((a,b)=>a+b,0);
   const where=state.hob==="All"?(state.city&&state.city!=="All"?state.city:"all branches"):esc(state.hob);
-  const head=`<div class="sec"><h2>${monthLabel(lm)} · ${where}</h2>${pdfBtn("svcRep","Report PDF")}</div><div class="kcards">
-    ${card("Patients",L.p,P&&P.p,v=>fmt(v))}${card("Requests",L.q,P&&P.q,v=>fmt(v))}${card("Charges",L.c,P&&P.c,fmtC)}${card("Charge per patient",L.p?L.c/L.p:0,P&&P.p?P.c/P.p:null,fmtC)}${card("Converted to INP",L.v,P&&P.v,v=>fmt(v))}</div>`;
-  const cols=["#0B2C4F","#E9A45F","#3E8E7E","#9B6FB0","#D64545","#7FA6CF","#B5651B","#5B6B80","#2F9E6E","#C9A227"];
-  const seg=`<div class="seg" style="margin-bottom:10px">${SVC_MEASURES.map(([k,l])=>`<button aria-pressed="${K===k}" data-svk="${k}">${l}</button>`).join("")}</div>`;
-  const ch=chart({labels:ms.map(mShort),h:290,lines:secs.map((s,i)=>({name:s,color:cols[i%cols.length],values:ms.map(m=>{const rs=R.filter(r=>r.Month===m&&r.Section===s); return rs.length?val(rs):null;})})),fmtY:v=>(K==="Total_Charge"||K==="per")?fmtC(v):fmt(Math.round(v)),tipFmt:v=>v==null?"—":fmtK(v)});
-  const lab=Object.fromEntries(SVC_MEASURES)[K];
-  const grid=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Service line</th>${ms.map(m=>`<th>${mShort(m)}</th>`).join("")}<th>${K==="per"?"Average":"Total"}</th></tr></thead><tbody>
-    ${secs.map(s=>{ const rs=R.filter(r=>r.Section===s); return `<tr><td class="l name">${esc(s)}</td>${ms.map(m=>{const x=rs.filter(r=>r.Month===m); return `<td class="num">${x.length?fmtK(val(x)):'<span class="of">·</span>'}</td>`;}).join("")}<td class="num"><b>${fmtK(val(rs))}</b></td></tr>`; }).join("")}
-    <tr class="total"><td class="l">All service lines</td>${ms.map(m=>`<td class="num">${fmtK(val(R.filter(r=>r.Month===m)))}</td>`).join("")}<td class="num">${fmtK(val(R))}</td></tr></tbody></table></div>`;
-  const det=`<div class="panel tbl-wrap"><table><thead><tr><th>Service line</th><th>Patients</th><th>Requests</th><th>Requests per patient</th><th>Charges</th><th>Charge per patient</th><th>Share of charges</th><th>Converted to INP</th><th>vs ${pm?mShort(pm):"—"}</th></tr></thead><tbody>
-    ${secs.map(s=>{ const a=agg(R.filter(r=>r.Month===lm&&r.Section===s)), b=pm?agg(R.filter(r=>r.Month===pm&&r.Section===s)):null; if(!a.p&&!a.c) return "";
-      return `<tr><td class="l name">${esc(s)}</td><td class="num"><b class="ach">${fmt(a.p)}</b></td><td class="num">${fmt(a.q)}</td><td class="num">${a.p?(a.q/a.p).toFixed(1):"—"}</td><td class="num"><b class="ach">${fmtC(a.c)}</b></td><td class="num">${a.p?fmtC(a.c/a.p):"—"}</td><td class="num">${pctTxt(L.c?a.c/L.c:null)}</td><td class="num">${fmt(a.v)} <span class="of">${pctTxt(a.p?a.v/a.p:null)}</span></td><td class="num">${b&&b.c?delta(a.c,b.c):""}</td></tr>`; }).join("")}
-    <tr class="total"><td class="l">All service lines</td><td class="num">${fmt(L.p)}</td><td class="num">${fmt(L.q)}</td><td class="num">${L.p?(L.q/L.p).toFixed(1):"—"}</td><td class="num">${fmtC(L.c)}</td><td class="num">${L.p?fmtC(L.c/L.p):"—"}</td><td class="num">100%</td><td class="num">${fmt(L.v)}</td><td class="num">${P&&P.c?delta(L.c,P.c):""}</td></tr></tbody></table></div>`;
-  PDF_ACTIONS.svcRep=()=>makePdf({title:"Service lines report",sub:`${monthLabel(ms[0])} – ${monthLabel(lm)} · ${where}`,landscape:true,
-    kpis:[["Patients",fmt(L.p)],["Requests",fmt(L.q)],["Charges",fmtC(L.c)],["Charge per patient",L.p?fmtC(L.c/L.p):"—"],["Converted to INP",fmt(L.v)]],
-    sections:[{h:`${monthLabel(lm)} by service line`,html:pdfTable(["Service line","Patients","Requests","Charges","Per patient","Share","To INP"],secs.map(s=>{const a=agg(R.filter(r=>r.Month===lm&&r.Section===s)); return [esc(s),fmt(a.p),fmt(a.q),fmt(a.c),a.p?fmt(a.c/a.p):"—",pctTxt(L.c?a.c/L.c:null),fmt(a.v)];}),["All",fmt(L.p),fmt(L.q),fmt(L.c),L.p?fmt(L.c/L.p):"—","100%",fmt(L.v)])},
-      {h:`${lab} by month`,html:pdfTable(["Service line",...ms.map(mShort),K==="per"?"Average":"Total"],secs.map(s=>{const rs=R.filter(r=>r.Section===s); return [esc(s),...ms.map(m=>{const x=rs.filter(r=>r.Month===m); return x.length?fmtK(val(x)):"";}),fmtK(val(rs))];}),["All",...ms.map(m=>fmtK(val(R.filter(r=>r.Month===m)))),fmtK(val(R))])}]});
-  return head+`<div class="sec"><h2>Each service line by month</h2></div>${seg}<div class="panel chartbox"><h3 class="ct">${lab} per service line</h3>${ch}${legendHtml(secs.map((s,i)=>[s,cols[i%cols.length]]))}</div>
-    <h3 class="tbl-title">${lab} · each service line, each month</h3>${grid}
-    <h3 class="tbl-title">${monthLabel(lm)} · detail by service line</h3>${det}`;
+  const scope=`${sel?esc(sel):"All service lines"} · ${where}`;
+  // metric cards
+  const cards=Object.entries(SVC_M).map(([k,[lab,mon]])=>{ const s=series(R,k), t=trendOf(s);
+    return `<button class="mcard ${k===mk?"on":""}" data-svk="${k}"><span>${lab}</span><b class="num">${fmtM(total(R,k),mon)}</b>
+      ${vBadge(t)}<div class="mspark">${miniArea(s,VERDICT[t.verdict].c,labels,260,64,mon)}</div><small class="mfoot">${mShort(months.at(-1))}: <b>${fmtM(s.at(-1),mon)}</b> · vs ${mShort(months.at(-2)||months[0])} ${pctS(t.mom)}</small></button>`; }).join("");
+  // main chart: stacked by branch (one bar when the measure is a ratio)
+  const bus=BU_ORDER.filter(b=>R.some(r=>r.BU===b));
+  const tot=series(R,mk), T=trendOf(tot);
+  const bars = mk==="per" ? [{name:"Charge per patient",color:"var(--navy)",values:tot}] : bus.map(b=>({name:b,color:BR_COL[b]||"#94A3B8",values:series(R.filter(r=>r.BU===b),mk)}));
+  const bi=tot.indexOf(Math.max(...tot)), wi=tot.indexOf(Math.min(...tot)), marks={};
+  marks[bi]={bg:"rgba(46,158,91,.08)",c:"var(--green)",t:"BEST"}; if (wi!==bi) marks[wi]={bg:"rgba(214,69,69,.07)",c:"var(--red)",t:"LOWEST"};
+  const main=chart({labels,h:330,bars,barLabels:tot.map(v=>F(v)),deltas:tot.map((v,i)=>i?pctChange(tot[i-1],v):null),marks,
+    lines:[{name:"Trend line",color:VERDICT[T.verdict].c,values:T.line,dash:"7 5",noDots:true,width:2.6}],fmtY:F,tipFmt:v=>money?fmt(v):fmtV(Math.round(v*10)/10)});
+  const verdictLine=`<div class="verdict" style="--c:${VERDICT[T.verdict].c};--bg:${VERDICT[T.verdict].bg}"><div class="vi">${VERDICT[T.verdict].i}</div>
+    <div>${vSentence(mLabel,T)} (${scope}). Last ${T.k} months vs the ${T.k} before: <b>${pctS(T.recent)}</b>. ${mShort(months[0])} → ${mShort(months.at(-1))}: <b>${pctS(pctChange(tot[0],tot.at(-1)))}</b>.</div></div>`;
+  const stats=`<div class="hstats num"><div><span>${mk==="per"?"Average":"Total"} · ${months.length} months</span><b>${F(total(R,mk))}</b></div><div><span>Monthly average</span><b>${F(T.mean)}</b></div>
+    <div><span>Best month</span><b class="up">${monthLabel(months[bi])}</b><small>${F(tot[bi])}</small></div><div><span>Lowest month</span><b class="down">${monthLabel(months[wi])}</b><small>${F(tot[wi])}</small></div>
+    <div><span>Months above average</span><b>${tot.filter(v=>v>=T.mean).length} of ${months.length}</b></div></div>`;
+  // service-line scorecards (click to focus the page on one)
+  const sS=allSecs.map(s=>{ const rs=R0.filter(r=>r.Section===s), sr=series(rs,mk); return {s,sr,t:trendOf(sr),tot:total(rs,mk)}; });
+  const grand=mk==="per"?null:sS.reduce((a,b)=>a+b.tot,0);
+  const scards=`<div class="scards">${[...sS].sort((a,b)=>b.tot-a.tot).map(x=>`<div class="panel scard ${sel===x.s?"on":""}" data-svsec="${esc(x.s)}">
+      <header><span><i class="sw" style="background:${secColor(x.s)}"></i><b>${esc(x.s)}</b></span>${vBadge(x.t)}</header>
+      <div class="sv num">${F(x.tot)} <small>${grand?share(x.tot,grand)+" of total":"average"}</small></div>${miniArea(x.sr,secColor(x.s),labels,320,96,money)}
+      <footer class="num"><span>Last ${x.t.k} vs prior ${x.t.k}: ${pctS(x.t.recent)}</span><span>Best: ${mShort(months[x.sr.indexOf(Math.max(...x.sr))])}</span></footer></div>`).join("")}</div>`;
+  // branches
+  const rcards=bus.map(b=>{ const rs=R.filter(r=>r.BU===b), sr=series(rs,mk), t=trendOf(sr); return `<div class="panel scard wide"><header><span><i class="sw" style="background:${BR_COL[b]}"></i><b>${esc(b)}</b></span>${vBadge(t)}</header>
+      <div class="sv num">${F(total(rs,mk))} <small>last ${t.k} vs prior ${t.k}: ${pctS(t.recent)}</small></div>${miniArea(sr,BR_COL[b]==="var(--gold)"?"#D08A3E":BR_COL[b]==="var(--navy)"?"#0B2C4F":BR_COL[b],labels,560,110,money)}</div>`; }).join("");
+  // mix of service lines and the month-by-month table
+  const totals=months.map((_,i)=>sS.reduce((s,x)=>s+(mk==="per"?0:x.sr[i]),0));
+  const mix=mk==="per"?"":chart({labels,w:560,h:300,yMax:100,bars:sS.map(x=>({name:x.s,color:secColor(x.s),values:x.sr.map((v,i)=>totals[i]?v/totals[i]*100:0)})),fmtY:v=>Math.round(v)+"%",tipFmt:v=>Math.round(v)+"%"});
+  const heat=(v,mean)=>!mean?"":v/mean>=1.15?"hi":v/mean<=0.85?"lo":"";
+  const table=`<div class="panel tbl-wrap"><table class="heat"><thead><tr><th>Service line</th>${labels.map(l=>`<th>${l}</th>`).join("")}<th>${mk==="per"?"Average":"Total"}</th>${grand?"<th>Share</th>":""}<th>Trend</th></tr></thead><tbody>
+    ${sS.map(x=>`<tr class="click ${sel===x.s?"sel":""}" data-svsec="${esc(x.s)}"><td class="l name"><i class="sw" style="background:${secColor(x.s)}"></i>${esc(x.s)}</td>
+      ${x.sr.map(v=>`<td class="num ${heat(v,x.t.mean)}">${v?F(v):'<span class="of">0</span>'}</td>`).join("")}<td class="num"><b>${F(x.tot)}</b></td>${grand?`<td class="num">${share(x.tot,grand)}</td>`:""}<td>${vBadge(x.t)}</td></tr>`).join("")}
+    <tr class="total"><td class="l">All service lines</td>${series(R0,mk).map(v=>`<td class="num">${F(v)}</td>`).join("")}<td class="num">${F(total(R0,mk))}</td>${grand?"<td>100%</td>":""}<td>${vBadge(trendOf(series(R0,mk)))}</td></tr></tbody></table></div>`;
+  PDF_ACTIONS.svcRep=()=>makePdf({title:"Service lines report",sub:`${monthLabel(months[0])} – ${monthLabel(months.at(-1))} · ${scope}`,landscape:true,
+    kpis:Object.entries(SVC_M).map(([k,[lab,mon]])=>[lab,fmtM(total(R,k),mon)]),
+    sections:[{h:`${mLabel} by service line and month`,html:pdfTable(["Service line",...labels,mk==="per"?"Average":"Total"],sS.map(x=>[esc(x.s),...x.sr.map(v=>F(v)),F(x.tot)]),["All service lines",...series(R0,mk).map(v=>F(v)),F(total(R0,mk))])},
+      {h:`${mLabel} by branch and month`,html:pdfTable(["Branch",...labels,mk==="per"?"Average":"Total"],bus.map(b=>{const rs=R.filter(r=>r.BU===b); return [b,...series(rs,mk).map(v=>F(v)),F(total(rs,mk))];}))}]});
+  return `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">${sel?`<button class="btn pdfb" data-svsec="">✕ ${esc(sel)} · show all service lines</button>&nbsp;`:""}${pdfBtn("svcRep","Report PDF")}</div>
+    <div class="mcards" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">${cards}</div>
+    <div class="sec"><h2>${mLabel} by month · ${scope}</h2>${legendHtml([...bars.map(b=>[b.name,b.color]),["Trend line",VERDICT[T.verdict].c,1]])}</div>${verdictLine}
+    <div class="panel chartbox">${main}${stats}</div>
+    <div class="sec"><h2>Service lines</h2><p>Click one to focus the page on it</p></div>${scards}
+    ${bus.length>1?`<div class="sec"><h2>Branches</h2></div><div class="two">${rcards}</div>`:""}
+    ${mix?`<div class="sec"><h2>Mix of service lines</h2><p>Share of ${mLabel.toLowerCase()} each month</p></div><div class="panel chartbox">${mix}${legendHtml(sS.map(x=>[x.s,secColor(x.s)]))}</div>`:""}
+    <div class="sec"><h2>Month by month</h2><p>Green = 15% above the line's own average, red = 15% below</p></div>${table}`;
 }
 
 /* ---------- Overview ---------- */
@@ -4252,6 +4291,7 @@ document.addEventListener("click", e=>{
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
   const svk = e.target.closest("[data-svk]"); if (svk){ state.svk=svk.dataset.svk; render(); return; }
+  const svs = e.target.closest("[data-svsec]"); if (svs){ state.svsec=svs.dataset.svsec||null; render(); return; }
   const ofk = e.target.closest("[data-ofk]"); if (ofk){ state.ofk=ofk.dataset.ofk; const y=scrollY; render(); scrollTo(0,y); return; }
   const chc = e.target.closest("[data-chc]"); if (chc && !(tourI>=0 && !e.target.closest(".spot"))){ openChDetail(chc.dataset.chc); return; }
   const cs = e.target.closest("[data-cmsel],[data-ntlsel],[data-chsel]");
@@ -4308,6 +4348,8 @@ document.addEventListener("change", e=>{
   if (f==="lfrom" && state.lfrom>state.lto) state.lto=state.lfrom;
   if (f==="lto" && state.lto<state.lfrom) state.lfrom=state.lto;
   if (f==="ltf" && state.ltf>state.ltt) state.ltt=state.ltf;
+  if (f==="svF" && state.svF>state.svT) state.svT=state.svF;
+  if (f==="svT" && state.svT<state.svF) state.svF=state.svT;
   if (f==="rchF" && state.rchF>state.rchT) state.rchT=state.rchF;
   if (f==="rchT" && state.rchT<state.rchF) state.rchF=state.rchT;
   if (f==="iafrom" && state.iafrom>state.iato) state.iato=state.iafrom;
