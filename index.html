@@ -434,6 +434,11 @@ table.daygrid td.l,table.daygrid th:first-child{text-align:left;min-width:150px;
 
 .shg{color:var(--green);font-weight:600}.sha{color:#B5651B;font-weight:600}.shr{color:var(--red);font-weight:600}
 
+.gf{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 12px;padding:10px;border-radius:12px;background:rgba(255,255,255,.06)}
+.gf label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#A9BCD0}
+.gf select{font:inherit;font-size:12.5px;text-transform:none;letter-spacing:0;padding:6px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0E345C;color:#fff}
+#moreSheet .gf{background:#F1F4F8}#moreSheet .gf label{color:var(--muted)}#moreSheet .gf select{background:#fff;color:var(--navy);border-color:var(--line)}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -817,15 +822,15 @@ const PAGES = [
   {id:"h_fm", label:"Family medicine history", grp:"Historical"}
 ];
 PAGES.push({id:"leads", label:"Leads", grp:"Leads"},{id:"leads_trends", label:"Leads trends", grp:"Leads"},{id:"ops", label:"Case managers · charge per case", grp:"Operation"},{id:"ops_cases", label:"Cases", grp:"Operation"},{id:"ops_ch", label:"By sales channel", grp:"Operation"},{id:"ops_kpi", label:"Operational KPIs", grp:"Operation"},{id:"ops_ntl", label:"Nurse team leaders · LOS", grp:"Operation"},{id:"ops_er", label:"ER conversion", grp:"Operation"},{id:"ops_amb", label:"Ambulatory conversion", grp:"Operation"},{id:"ops_hist", label:"Charge history", grp:"Operation history"},
-  {id:"hist_kpi", label:"Operational KPIs history", grp:"Operation history"},{id:"hist_conv", label:"ER & ambulatory history", grp:"Operation history"},{id:"hist_los", label:"LOS history", grp:"Operation history"},
+  {id:"hist_kpi", label:"Operational KPIs history", grp:"Operation history"},{id:"hist_conv", label:"ER & ambulatory history", grp:"Operation history"},{id:"hist_los", label:"LOS history", grp:"Operation history"},{id:"hist_svc", label:"Service lines", grp:"Operation history"},{id:"ops_svc", label:"Service lines", grp:"Operation"},
   {id:"ia", label:"Revenue drivers", grp:"Informative analysis"},{id:"ia_funnel", label:"Leads → revenue", grp:"Informative analysis"},{id:"ia_stake", label:"Value at stake", grp:"Informative analysis"});
 PAGES.forEach(p=>{ if(!p.grp) p.grp="Commercial"; });
 { const L=Object.fromEntries(PAGES.map(p=>[p.id,p])), order=[
     ["occ","Occupancy"],["occ_pat","Occupancy"],["occ_inp","Occupancy"],["occ_flow","Occupancy"],
     ["overview","Commercial"],["team","Commercial"],["fm","Commercial"],["accounts","Commercial"],["visits","Commercial"],["ch_rep","Commercial"],
     ["leads","Leads"],["leads_trends","Leads"],
-    ["ops_kpi","Operation","Operational KPIs"],["ops_er","Operation","ER conversion"],["ops","Operation","Case managers"],["ops_amb","Operation","Ambulatory conversion"],["ops_ntl","Operation","LOS · nurse team leaders"],["ops_ch","Operation","By sales channel"],["ops_cases","Operation","Cases"],
-    ["h_trends","Commercial history"],["h_team","Commercial history"],["h_acc","Commercial history"],["h_fm","Commercial history"],["ops_hist","Operation history","Case managers history"],["hist_kpi","Operation history","Operational KPIs history"],["hist_conv","Operation history","ER & ambulatory history"],["hist_los","Operation history","LOS history"],
+    ["ops_kpi","Operation","Operational KPIs"],["ops_er","Operation","ER conversion"],["ops","Operation","Case managers"],["ops_amb","Operation","Ambulatory conversion"],["ops_svc","Operation","Service lines"],["ops_ntl","Operation","LOS · nurse team leaders"],["ops_ch","Operation","By sales channel"],["ops_cases","Operation","Cases"],
+    ["h_trends","Commercial history"],["h_team","Commercial history"],["h_acc","Commercial history"],["h_fm","Commercial history"],["ops_hist","Operation history","Case managers history"],["hist_kpi","Operation history","Operational KPIs history"],["hist_conv","Operation history","ER & ambulatory history"],["hist_los","Operation history","LOS history"],["hist_svc","Operation history","Service lines"],
     ["ia","Informative analysis"],["ia_funnel","Informative analysis"],["ia_stake","Informative analysis"]];
   const np=order.filter(([id])=>L[id]).map(([id,g,lab])=>({...L[id],grp:g,label:lab||L[id].label})); PAGES.length=0; PAGES.push(...np); }
 /* Three separate spaces opened from the home screen. Each space only shows its own pages. */
@@ -1115,7 +1120,7 @@ function _renderChrome(){
   const navTop = $("#nav").scrollTop;
   $("#spaceName").textContent = SPACES[spaceOf(state.page)].label + " dashboard";
   const sp = spaceOf(state.page), SPG = spacePages(sp);
-  $("#nav").innerHTML = SPG.map((p,i) => `${(i===0||SPG[i-1].grp!==p.grp)?`<div class="navgrp">${p.grp}</div>`:""}<button data-page="${p.id}" ${p.id===state.page?'aria-current="page"':''}><i></i>${p.label}</button>`).join("") + `<button class="homebtn" data-act="home">⌂ Home</button>` + (secure()&&AUTH?`<button class="homebtn" data-act="logout">⎋ Sign out · ${esc(AUTH.user.name)}</button>`:"") + `<button class="demo-btn" data-act="tour">▶ Guided demo</button>`;
+  $("#nav").innerHTML = gfHtml() + SPG.map((p,i) => `${(i===0||SPG[i-1].grp!==p.grp)?`<div class="navgrp">${p.grp}</div>`:""}<button data-page="${p.id}" ${p.id===state.page?'aria-current="page"':''}><i></i>${p.label}</button>`).join("") + `<button class="homebtn" data-act="home">⌂ Home</button>` + (secure()&&AUTH?`<button class="homebtn" data-act="logout">⎋ Sign out · ${esc(AUTH.user.name)}</button>`:"") + `<button class="demo-btn" data-act="tour">▶ Guided demo</button>`;
   $("#nav").scrollTop = navTop;
   const live = SOURCE.mode==="live";
   const when = SOURCE.at ? SOURCE.at.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "—";
@@ -1137,21 +1142,27 @@ function _renderChrome(){
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("Informative analysis · ","")); return;
   }
+  if (state.page==="ops_svc"){
+    f = sel("Business unit","hob",["All",...cityBUs()]);
+    sub = `Operation · service lines · ${state.hob==="All"?(state.city&&state.city!=="All"?state.city:"all branches"):state.hob}`;
+    $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
+    renderMobile(page, sub.replace("Operation · ","")); return;
+  }
   if (state.page==="ops_ch"){
     const om=opsMonths().slice().reverse(); f = `<label>Month<select data-f="chm">${om.map(x=>`<option value="${x}" ${x===(state.chm||om[0])?"selected":""}>${opsLabel(x)}</option>`).join("")}</select></label>`;
     $("#bar").innerHTML = `<h1>${page.label}<small>Operation · charge per case and LOS by channel</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, page.label); return;
   }
   if (["ops_cmr","ops_ntl","ops_er","ops_amb"].includes(state.page)){
-    if (state.page==="ops_cmr"){ const om=opsMonths().slice().reverse(); f = `<label>Month<select data-f="rcmM">${om.map(x=>`<option value="${x}" ${x===(state.rcmM||om[0])?"selected":""}>${opsLabel(x)}</option>`).join("")}</select></label>` + sel("Branch","rcmBU",["All",...BU_ORDER]); }
+    if (state.page==="ops_cmr"){ const om=opsMonths().slice().reverse(); f = `<label>Month<select data-f="rcmM">${om.map(x=>`<option value="${x}" ${x===(state.rcmM||om[0])?"selected":""}>${opsLabel(x)}</option>`).join("")}</select></label>` + sel("Branch","rcmBU",["All",...cityBUs()]); }
     if (state.page==="ops_ntl"){ const nm=[...new Set((DB.Ops_NTL||[]).map(r=>r.Month))].sort().reverse(); f = `<label>Month<select data-f="rnm">${nm.map(x=>`<option value="${x}" ${x===(state.rnm||nm[0])?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label>`; }
-    if (state.page==="ops_er"||state.page==="ops_amb") f = sel("Branch","rcbu",["All",...BU_ORDER]);
+    if (state.page==="ops_er"||state.page==="ops_amb") f = sel("Branch","rcbu",["All",...cityBUs()]);
     sub = `Operation · ${page.label}`;
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, page.label); return;
   }
-  if (["hist_kpi","hist_conv","hist_los"].includes(state.page)){
-    f = sel("Business unit","hob",["All",...BU_ORDER]);
+  if (["hist_kpi","hist_conv","hist_los","hist_svc"].includes(state.page)){
+    f = sel("Business unit","hob",["All",...cityBUs()]);
     sub = `History · Operation · ${state.hob==="All"?"all branches":state.hob}`;
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("History · ","")); return;
@@ -1270,7 +1281,7 @@ function renderMobile(page, sub){
   $("#tabbar").innerHTML = TABS_M.map(([id,l,ic])=>`<button data-page="${id}" ${id===state.page?'aria-current="page"':''}>${IC[ic]}<span>${l}</span></button>`).join("") +
     `<button data-m="more" ${!inTabs?'aria-current="page"':''}>${IC.more}<span>More</span></button>`;
   const when = SOURCE.at ? SOURCE.at.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "—";
-  $("#moreSheet").innerHTML = `<div class="grab"></div>` + SPACES[sp].groups.map(g=>`<h4>${g}</h4>`+PAGES.filter(p=>p.grp===g).map(p=>`<button class="mi" data-page="${p.id}" ${p.id===state.page?'aria-current="page"':''}>${p.label}</button>`).join("")).join("") +
+  $("#moreSheet").innerHTML = `<div class="grab"></div>` + gfHtml() + SPACES[sp].groups.map(g=>`<h4>${g}</h4>`+PAGES.filter(p=>p.grp===g).map(p=>`<button class="mi" data-page="${p.id}" ${p.id===state.page?'aria-current="page"':''}>${p.label}</button>`).join("")).join("") +
     `<button class="mi" data-act="home">⌂ Home</button>${secure()&&AUTH?`<button class="mi" data-act="logout">⎋ Sign out</button>`:""}<button class="mi demo" data-act="tour">▶ Guided demo</button>
      <div class="msrc">${live?"🟢 Live · Google Sheets":SOURCE.mode==="stale"?"🟠 Last good copy":"🟠 "+(CONFIG.SHEET_ID?"Offline copy":"Demo data")} · ${SOURCE.error?esc(SOURCE.error):"checked "+when}<br>Created by <b>Eng. Beshoy Attia</b></div>`;
 }
@@ -1330,9 +1341,9 @@ function render(){
   renderChrome();
   { const n=$("#nav"), a=n&&n.querySelector('[aria-current="page"]'); if (a && (a.offsetTop < n.scrollTop || a.offsetTop+a.offsetHeight > n.scrollTop+n.clientHeight)) a.scrollIntoView({block:"nearest"}); navHint(); }
   const v = $("#view");
-  if (state.page.startsWith("ops")){ v.innerHTML = ({ops:opsPage,ops_cases:opsCases,ops_hist:opsHist,ops_kpi:opsKpiPage,ops_cmr:opsCmReport,ops_ntl:opsNtl,ops_er:opsEr,ops_amb:opsAmb,ops_ch:opsChannels})[state.page](); cardify(v); return; }
+  if (state.page.startsWith("ops")){ v.innerHTML = ({ops:opsPage,ops_cases:opsCases,ops_hist:opsHist,ops_kpi:opsKpiPage,ops_cmr:opsCmReport,ops_ntl:opsNtl,ops_er:opsEr,ops_amb:opsAmb,ops_ch:opsChannels,ops_svc:histSvc})[state.page](); cardify(v); return; }
   if (state.page==="ch_rep"){ v.innerHTML = chReport(); cardify(v); return; }
-  if (state.page.startsWith("hist_")){ v.innerHTML = ({hist_kpi:histKpi,hist_conv:histConv,hist_los:histLos})[state.page](); cardify(v); return; }
+  if (state.page.startsWith("hist_")){ v.innerHTML = ({hist_kpi:histKpi,hist_conv:histConv,hist_los:histLos,hist_svc:histSvc})[state.page](); cardify(v); return; }
   if (state.page.startsWith("ia")){ v.innerHTML = ({ia:iaDriversPage,ia_funnel:iaFunnel,ia_stake:iaStake})[state.page](); cardify(v); return; }
   if (state.page.startsWith("occ")){ v.innerHTML = ({occ:occOverview,occ_pat:occPatients,occ_inp:occINP,occ_flow:occFlow})[state.page](); cardify(v); return; }
   if (state.page.startsWith("h_")){ v.innerHTML = ({h_trends:hTrends,h_team:hTeam,h_acc:hAccounts,h_fm:hFM})[state.page](); cardify(v); return; }
@@ -2047,7 +2058,7 @@ function occINP(){
    OPERATION · charge per case (tabs: Ops_Cases, Ops_Benchmark)
    ============================================================ */
 const OPS_TABS = {Ops_Cases:["Month","BU","Case_Manager","Case","MTD_Target","Actual_Charge"], Ops_Benchmark:["Category","Benchmark"],
-  Ops_KPI:["Month","BU","KPI","Actual"], Ops_NTL:["Month","BU","Nurse_Team_Leader","Actual_LOS"], Ops_NTL_Cases:["Month","BU","Nurse_Team_Leader","Case","Actual_LOS"], Ops_ER:["Month","BU","ER_Patients","Actual_Conv"], Ops_LOS:["Month","BU","Actual_LOS","MTD_LOS_Target"], Ops_OPD:["Month","BU","Section","Patients"], Flow_Targets:["Month","Channel","ER_Target"], Ops_Channel_Summary:["Month","BU","Sales_Channel","Cases"]};
+  Ops_KPI:["Month","BU","KPI","Actual"], Ops_NTL:["Month","BU","Nurse_Team_Leader","Actual_LOS"], Ops_NTL_Cases:["Month","BU","Nurse_Team_Leader","Case","Actual_LOS"], Ops_ER:["Month","BU","ER_Patients","Actual_Conv"], Ops_LOS:["Month","BU","Actual_LOS","MTD_LOS_Target"], Ops_OPD:["Month","BU","Section","Patients"], Flow_Targets:["Month","Channel","ER_Target"], Ops_Channel_Summary:["Month","BU","Sales_Channel","Cases"], Ops_Service_Lines:["Month","BU","Section","Patients"]};
 const OPS_TEXT = new Set(["Month","As_Of","BU","Case_Manager","Case","New_Old","Entry_Date","Off_Date","Consultant","Grade","Category","Service_Column","KPI","Section","Nurse_Team_Leader","Channel","Sales_Channel","Channel_Source"]);
 const SERV_COLS = [["Hospitality","Hospitality"],["Dr_Visit","Dr visit"],["Lab","Lab"],["Medical_Supervision","Medical supervision"],["Devices","Devices"],["Medical_Procedures","Medical procedures"],["Physiotherapy","Physiotherapy"],["Radiology","Radiology"],["Nursing_Procedures","Nursing procedures"],["Ambulance","Ambulance"]];
 const PKG = [["ICU_Days","ICU","var(--navy)"],["IMCU_Days","IMCU","#7FA6CF"],["Ward_Days","Ward","var(--gold)"],["SN24_Days","Special nurse 24h","#3E8E7E"],["SN12_Days","Special nurse 12h","#9B6FB0"]];
@@ -3185,10 +3196,11 @@ async function doLogout(){
 /* build the dashboard data from the tabs this user is allowed to receive */
 function dbFromApi(tabs){ API_TABS=tabs||{}; DB=tabsToDB(API_TABS); }
 function tabsToDB(TT){
+  TT=filterTabs(TT);
   const keep=DB; let DBx;
   const A=n=>TT[n]||[], O=n=>{ const a=A(n); if(!a.length) return []; const [h,...b]=a; const H=h.map(x=>String(x??"").trim()).map((k,i)=> k || (b.slice(0,50).filter(r=>r[i]!==""&&r[i]!=null).length && b.slice(0,50).filter(r=>r[i]!==""&&r[i]!=null).every(r=>/^\d{4}-\d{2}/.test(String(r[i]))) ? "Month" : k)); /* a header cell wiped by mistake (e.g. "Month" overwritten by a space) is recognised from its values */ return b.map(r=>Object.fromEntries(H.map((k,i)=>[k, r[i]??""]))); };
   DB=prep(Object.fromEntries(TABS.map(t=>[t,O(t)]))); applyMTD(DB);   // applyMTD / buildLeads read the global DB
-  DB.Leads=buildLeads(Object.fromEntries(LEAD_TABS.map(t=>[t, A(t).length?A(t).map(r=>r.map(c=>c==null?"":String(c))):null])));
+  DB.Leads=filterLeads(buildLeads(Object.fromEntries(LEAD_TABS.map(t=>[t, A(t).length?A(t).map(r=>r.map(c=>c==null?"":String(c))):null]))));
   Object.assign(DB, prepOcc(Object.fromEntries(Object.keys(OCC_TABS).map(t=>[t,O(t)])))); DB.__occSample=false;
   Object.assign(DB, prepOps(Object.fromEntries(Object.keys(OPS_TABS).map(t=>[t,O(t)])))); DB.__opsSample=false; DB.__opsPartial=[];
   DBx=DB; DB=keep; return DBx;
@@ -3730,9 +3742,98 @@ hTrends = function(){
 
 /* safety net: if a page fails to draw (unexpected data in the sheet), say so instead of leaving the previous page on screen */
 { const _render = render;
-  render = function(){ try{ _render.apply(this, arguments); }
+  let lastPage=null;
+  render = function(){ const y=scrollY, same=lastPage===state.page; try{ _render.apply(this, arguments); if (same) requestAnimationFrame(()=>scrollTo(0,y)); lastPage=state.page; }
     catch(e){ console.error(e); const v=$("#view"); if (v) v.innerHTML=`<div class="panel empty" style="padding:28px">This page couldn't be drawn with the current data.<div class="of" style="margin-top:8px;font-size:12.5px">${esc(String(e&&e.message||e))}</div><div style="margin-top:14px"><button class="btn gold" data-act="home">⌂ Home</button></div></div>`; } };
 }
+/* ============================================================
+   GLOBAL FILTERS (whole system): City (Cairo = New Cairo + Mohandessen, or Alex) and Business unit
+   (Digital = Digital-Pure · Business Development = Medical Sales, Corporate, Community).
+   The data itself is filtered once, so every page, table, chart and PDF follows.
+   ============================================================ */
+const UNIT_CH = {Digital:["Digital-Pure"], BD:["Medical Sales","Corporate","Community"]};
+const UNIT_LABEL = {All:"All units", Digital:"Digital", BD:"Business Development"};
+const cityBUs = () => BU_ORDER.filter(b=>!state.city||state.city==="All"||areaOf(b)===state.city);
+const leadCity = b => b==="Alex" ? "Alex" : (["New Cairo","Mohandessen","Cairo area"].includes(b) ? "Cairo" : null);
+function gfActive(){ return (state.city&&state.city!=="All") || (state.unit&&state.unit!=="All"); }
+function filterTabs(TT){
+  if (!gfActive()) return TT;
+  const city=state.city||"All", unit=state.unit||"All", chs=UNIT_CH[unit], out={};
+  for (const [n,a] of Object.entries(TT||{})){
+    if (!a||!a.length||n==="Settings"||n==="Users"||LEAD_TABS.includes(n)){ out[n]=a; continue; }
+    if (chs && (n==="FamilyMedicine"||n==="Hist_FM")){ out[n]=[a[0]]; continue; }   // family medicine is neither Digital nor BD
+    const h=a[0].map(x=>String(x??"").trim()), bi=h.indexOf("BU"), ri=h.indexOf("Region"), ci=h.indexOf("Channel")>=0?h.indexOf("Channel"):h.indexOf("Sales_Channel");
+    out[n]=[a[0], ...a.slice(1).filter(r=>{
+      if (city!=="All"){
+        if (bi>=0){ const b=fixBU(String(r[bi]??"").trim()); if (b && (b==="Group" || areaOf(b)!==city)) return false; }
+        else if (ri>=0){ const g=String(r[ri]??"").trim(); if (g && g!==city) return false; }
+      }
+      if (chs && ci>=0){ const c=String(r[ci]??"").trim(); if (!chs.includes(c)) return false; }
+      return true; })];
+  }
+  return out;
+}
+function filterLeads(L){
+  if (!gfActive()) return L;
+  const city=state.city||"All", chs=UNIT_CH[state.unit||"All"];
+  return L.filter(l=>(city==="All"||leadCity(l.bu)===city) && (!chs||chs.includes(l.channel)));
+}
+function gfHtml(){
+  if (!DB) return "";
+  return `<div class="gf"><label>City<select data-g="city">${[["All","Cairo & Alex"],["Cairo","Cairo"],["Alex","Alex"]].map(([v,l])=>`<option value="${v}" ${(state.city||"All")===v?"selected":""}>${l}</option>`).join("")}</select></label>
+    <label>Business unit<select data-g="unit">${Object.entries(UNIT_LABEL).map(([v,l])=>`<option value="${v}" ${(state.unit||"All")===v?"selected":""}>${l}</option>`).join("")}</select></label></div>`;
+}
+function applyGlobal(){
+  if (REAL_DB) return;
+  DB = tabsToDB(API_TABS||{});
+  ["obu","obu2","rcbu","rcmBU","rnbu","hob","iareg","bu"].forEach(k=>{ if (state[k] && state[k]!=="All" && !cityBUs().includes(state[k])) state[k]="All"; });
+  if (state.region && state.region!=="All" && state.city && state.city!=="All" && state.region!==state.city) state.region="All";
+  ["cmSel","ntlSel","chSel"].forEach(k=>{ if (state[k] && !cityBUs().includes(state[k])) state[k]=null; });
+  if (state.city && state.city!=="All"){ if (state.okbu==="Group" || !cityBUs().includes(state.okbu)) state.okbu=cityBUs()[0]; } else if (!state.okbu) state.okbu="Group";
+  const y=scrollY; afterData(); renderChrome(); requestAnimationFrame(()=>scrollTo(0,y));
+  toast(`Showing ${state.city&&state.city!=="All"?state.city:"Cairo & Alex"} · ${UNIT_LABEL[state.unit||"All"]}`);
+}
+document.addEventListener("change", e=>{ const g=e.target.closest("[data-g]"); if(!g) return; state[g.dataset.g]=g.value; try{ localStorage.setItem("carehub_gf", JSON.stringify({city:state.city,unit:state.unit})); }catch(_){} applyGlobal(); });
+try{ const s=JSON.parse(localStorage.getItem("carehub_gf")||"{}"); state.city=s.city||"All"; state.unit=s.unit||"All"; }catch(_){ state.city="All"; state.unit="All"; }
+
+/* ============================================================
+   OPERATION HISTORY · SERVICE LINES (ER, Rad, Lab, Dr visit, Physiotherapy, Nursing, Dialysis, Ambulance…)
+   ============================================================ */
+const SVC_MEASURES = [["Patients","Patients"],["Requests","Requests"],["Total_Charge","Charges"],["per","Charge per patient"],["Conversions","Converted to INP"]];
+function svcRows(){ return (DB.Ops_Service_Lines||[]).filter(r=>hBus().includes(r.BU)); }
+function histSvc(){
+  const R=svcRows(); if(!R.length) return `<div class="panel empty">No service-line data yet. Add the Ops_Service_Lines tab to the sheet.</div>`;
+  const ms=[...new Set(R.map(r=>r.Month))].sort(), secs=[...new Set(R.map(r=>r.Section))].sort((a,b)=>sum(R.filter(r=>r.Section===b),"Total_Charge")-sum(R.filter(r=>r.Section===a),"Total_Charge"));
+  const K=state.svk||"Total_Charge", lm=ms.at(-1), pm=ms.at(-2);
+  const agg=rs=>({p:sum(rs,"Patients"),q:sum(rs,"Requests"),c:sum(rs,"Total_Charge"),v:sum(rs.filter(r=>r.Conversions!==""&&r.Conversions!=null),"Conversions")});
+  const val=(rs)=>{ const a=agg(rs); return K==="per"?(a.p?a.c/a.p:null):K==="Patients"?a.p:K==="Requests"?a.q:K==="Conversions"?a.v:a.c; };
+  const fmtK=v=>v==null?"—":(K==="Total_Charge"||K==="per")?fmtC(v):fmt(Math.round(v));
+  const L=agg(R.filter(r=>r.Month===lm)), P=pm?agg(R.filter(r=>r.Month===pm)):null;
+  const delta=(a,b)=>b?`<span class="dl ${a>=b?"up":"down"}">${a>=b?"▲":"▼"} ${Math.abs(Math.round((a-b)/b*100))}%</span>`:"";
+  const card=(lab,v,pv,f)=>`<div class="panel kcard"><span>${lab}</span><b class="num">${f(v)}</b><small>${pv!=null?`vs ${mShort(pm)}: ${delta(v,pv)}`:""}</small></div>`;
+  const where=state.hob==="All"?(state.city&&state.city!=="All"?state.city:"all branches"):esc(state.hob);
+  const head=`<div class="sec"><h2>${monthLabel(lm)} · ${where}</h2>${pdfBtn("svcRep","Report PDF")}</div><div class="kcards">
+    ${card("Patients",L.p,P&&P.p,v=>fmt(v))}${card("Requests",L.q,P&&P.q,v=>fmt(v))}${card("Charges",L.c,P&&P.c,fmtC)}${card("Charge per patient",L.p?L.c/L.p:0,P&&P.p?P.c/P.p:null,fmtC)}${card("Converted to INP",L.v,P&&P.v,v=>fmt(v))}</div>`;
+  const cols=["#0B2C4F","#E9A45F","#3E8E7E","#9B6FB0","#D64545","#7FA6CF","#B5651B","#5B6B80","#2F9E6E","#C9A227"];
+  const seg=`<div class="seg" style="margin-bottom:10px">${SVC_MEASURES.map(([k,l])=>`<button aria-pressed="${K===k}" data-svk="${k}">${l}</button>`).join("")}</div>`;
+  const ch=chart({labels:ms.map(mShort),h:290,lines:secs.map((s,i)=>({name:s,color:cols[i%cols.length],values:ms.map(m=>{const rs=R.filter(r=>r.Month===m&&r.Section===s); return rs.length?val(rs):null;})})),fmtY:v=>(K==="Total_Charge"||K==="per")?fmtC(v):fmt(Math.round(v)),tipFmt:v=>v==null?"—":fmtK(v)});
+  const lab=Object.fromEntries(SVC_MEASURES)[K];
+  const grid=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Service line</th>${ms.map(m=>`<th>${mShort(m)}</th>`).join("")}<th>${K==="per"?"Average":"Total"}</th></tr></thead><tbody>
+    ${secs.map(s=>{ const rs=R.filter(r=>r.Section===s); return `<tr><td class="l name">${esc(s)}</td>${ms.map(m=>{const x=rs.filter(r=>r.Month===m); return `<td class="num">${x.length?fmtK(val(x)):'<span class="of">·</span>'}</td>`;}).join("")}<td class="num"><b>${fmtK(val(rs))}</b></td></tr>`; }).join("")}
+    <tr class="total"><td class="l">All service lines</td>${ms.map(m=>`<td class="num">${fmtK(val(R.filter(r=>r.Month===m)))}</td>`).join("")}<td class="num">${fmtK(val(R))}</td></tr></tbody></table></div>`;
+  const det=`<div class="panel tbl-wrap"><table><thead><tr><th>Service line</th><th>Patients</th><th>Requests</th><th>Requests per patient</th><th>Charges</th><th>Charge per patient</th><th>Share of charges</th><th>Converted to INP</th><th>vs ${pm?mShort(pm):"—"}</th></tr></thead><tbody>
+    ${secs.map(s=>{ const a=agg(R.filter(r=>r.Month===lm&&r.Section===s)), b=pm?agg(R.filter(r=>r.Month===pm&&r.Section===s)):null; if(!a.p&&!a.c) return "";
+      return `<tr><td class="l name">${esc(s)}</td><td class="num"><b class="ach">${fmt(a.p)}</b></td><td class="num">${fmt(a.q)}</td><td class="num">${a.p?(a.q/a.p).toFixed(1):"—"}</td><td class="num"><b class="ach">${fmtC(a.c)}</b></td><td class="num">${a.p?fmtC(a.c/a.p):"—"}</td><td class="num">${pctTxt(L.c?a.c/L.c:null)}</td><td class="num">${fmt(a.v)} <span class="of">${pctTxt(a.p?a.v/a.p:null)}</span></td><td class="num">${b&&b.c?delta(a.c,b.c):""}</td></tr>`; }).join("")}
+    <tr class="total"><td class="l">All service lines</td><td class="num">${fmt(L.p)}</td><td class="num">${fmt(L.q)}</td><td class="num">${L.p?(L.q/L.p).toFixed(1):"—"}</td><td class="num">${fmtC(L.c)}</td><td class="num">${L.p?fmtC(L.c/L.p):"—"}</td><td class="num">100%</td><td class="num">${fmt(L.v)}</td><td class="num">${P&&P.c?delta(L.c,P.c):""}</td></tr></tbody></table></div>`;
+  PDF_ACTIONS.svcRep=()=>makePdf({title:"Service lines report",sub:`${monthLabel(ms[0])} – ${monthLabel(lm)} · ${where}`,landscape:true,
+    kpis:[["Patients",fmt(L.p)],["Requests",fmt(L.q)],["Charges",fmtC(L.c)],["Charge per patient",L.p?fmtC(L.c/L.p):"—"],["Converted to INP",fmt(L.v)]],
+    sections:[{h:`${monthLabel(lm)} by service line`,html:pdfTable(["Service line","Patients","Requests","Charges","Per patient","Share","To INP"],secs.map(s=>{const a=agg(R.filter(r=>r.Month===lm&&r.Section===s)); return [esc(s),fmt(a.p),fmt(a.q),fmt(a.c),a.p?fmt(a.c/a.p):"—",pctTxt(L.c?a.c/L.c:null),fmt(a.v)];}),["All",fmt(L.p),fmt(L.q),fmt(L.c),L.p?fmt(L.c/L.p):"—","100%",fmt(L.v)])},
+      {h:`${lab} by month`,html:pdfTable(["Service line",...ms.map(mShort),K==="per"?"Average":"Total"],secs.map(s=>{const rs=R.filter(r=>r.Section===s); return [esc(s),...ms.map(m=>{const x=rs.filter(r=>r.Month===m); return x.length?fmtK(val(x)):"";}),fmtK(val(rs))];}),["All",...ms.map(m=>fmtK(val(R.filter(r=>r.Month===m)))),fmtK(val(R))])}]});
+  return head+`<div class="sec"><h2>Each service line by month</h2></div>${seg}<div class="panel chartbox"><h3 class="ct">${lab} per service line</h3>${ch}${legendHtml(secs.map((s,i)=>[s,cols[i%cols.length]]))}</div>
+    <h3 class="tbl-title">${lab} · each service line, each month</h3>${grid}
+    <h3 class="tbl-title">${monthLabel(lm)} · detail by service line</h3>${det}`;
+}
+
 /* ---------- Overview ---------- */
 function buAgg(rows){
   const k = ["INP_Rev_Target","INP_Rev_Actual","AMB_Rev_Target","AMB_Rev_Actual","INP_Vol_Target","INP_Vol_Actual","ICU_Target","ICU_Actual","ER_Target","ER_Actual"];
@@ -4150,6 +4251,7 @@ document.addEventListener("click", e=>{
   const pdf = e.target.closest("[data-pdf]");
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
+  const svk = e.target.closest("[data-svk]"); if (svk){ state.svk=svk.dataset.svk; render(); return; }
   const ofk = e.target.closest("[data-ofk]"); if (ofk){ state.ofk=ofk.dataset.ofk; const y=scrollY; render(); scrollTo(0,y); return; }
   const chc = e.target.closest("[data-chc]"); if (chc && !(tourI>=0 && !e.target.closest(".spot"))){ openChDetail(chc.dataset.chc); return; }
   const cs = e.target.closest("[data-cmsel],[data-ntlsel],[data-chsel]");
