@@ -1873,6 +1873,7 @@ function prepOcc(raw){
   // the same branch × channel (or branch × day) entered twice: the row further down the sheet is the newer one
   const keepLast=(rows,key)=>{ const m=new Map(); rows.forEach(r=>m.set(key(r),r)); return [...m.values()]; };
   if (o.Occ_INP) o.Occ_INP = keepLast(o.Occ_INP, r=>[r.Month,r.BU,r.Channel].join("|"));
+  if (o.Occ_Patients) o.Occ_Patients.forEach(p=>{ if (p.Sales_Channel) p.Sales_Channel=normCh(p.Sales_Channel); if (p.Smart_Pricing) p.Smart_Pricing=p.Smart_Pricing.trim().replace(/^\w/,c=>c.toUpperCase()).replace(/^(\w)(\w*)$/,(m,a,b)=>a+b.toLowerCase()); });
   if (o.Occ_Daily) o.Occ_Daily = keepLast(o.Occ_Daily, r=>[r.Date,r.BU].join("|"));
   return o;
 }
@@ -1993,8 +1994,10 @@ function occPatients(){
     if(!names.length) return "";
     return `<div class="panel tbl-wrap"><h3 class="ct" style="padding:14px 14px 0">${title}</h3><table class="grid compact"><thead><tr><th>${title}</th>${lvs.map(L=>`<th>${L.replace(" General","")}</th>`).join("")}<th>Total</th></tr></thead><tbody>
       ${names.map(n=>{const r=all.filter(p=>p[key]===n); return `<tr><td class="l name" dir="auto">${esc(n)}</td>${lvs.map(L=>`<td class="num">${r.filter(p=>p.Level===L).length||'<span class="of">0</span>'}</td>`).join("")}<td class="num"><b class="ach">${r.length}</b></td></tr>`;}).join("")}</tbody></table></div>`; };
-  const dist=(key,title)=>{ const m=[...groupBy(all,key)].map(([k,r])=>({k:k||"Not set",n:r.length})).sort((a,b)=>b.n-a.n); const mx=Math.max(1,...m.map(x=>x.n));
-    return `<div class="panel reasons"><h3>${title}<small>${all.length} patients</small></h3>${m.map(x=>`<div class="rs" style="cursor:default"><span class="rl">${esc(x.k)}</span><span class="rb"><i style="width:${x.n/mx*100}%"></i></span><span class="num rn">${x.n} <span class="of">${share(x.n,all.length)}</span></span></div>`).join("")}</div>`; };
+  const dist=(key,title,rows=all)=>{ const m=[...groupBy(rows,key)].map(([k,r])=>({k:k||"Not set",n:r.length})).sort((a,b)=>b.n-a.n); const mx=Math.max(1,...m.map(x=>x.n));
+    if (!rows.length) return `<div class="panel reasons"><h3>${title}<small>0 patients</small></h3><div class="of" style="padding:10px 0">No patients.</div></div>`;
+    return `<div class="panel reasons"><h3>${title}<small>${rows.length} patients</small></h3>${m.map(x=>`<div class="rs" style="cursor:default"><span class="rl">${esc(x.k)}</span><span class="rb"><i style="width:${x.n/mx*100}%"></i></span><span class="num rn">${x.n} <span class="of">${share(x.n,rows.length)}</span></span></div>`).join("")}</div>`; };
+  const hosp=all.filter(p=>p.Level!=="Special Nurse"), spn=all.filter(p=>p.Level==="Special Nurse");
   P=[...P].sort((a,b)=>(daysIn(b)??-1)-(daysIn(a)??-1));
   const roster=`<div class="sec" id="roster"><h2>Patients in care</h2><p>${P.length} shown${withDays.length?` · ${longStay} stayed longer than the ${los}-day LOS target (excl. special nurse)`:""}</p></div>
     <div class="listbar"><input class="lsearch" data-f="oq" type="search" placeholder="Search patient, doctor, nurse, account" value="${esc(state.oq)}"></div>
@@ -2005,7 +2008,8 @@ function occPatients(){
       <td class="num">${d==null?'<span class="of">—</span>':`<b class="ach">${d}</b>${d>los&&p.Level!=="Special Nurse"?' <span class="chip red">long</span>':""}`}</td>
       <td class="l">${esc(p.Sales_Channel)}${p.Account?`<span class="tag" dir="auto">${esc(p.Account)}</span>`:""}</td></tr>`;}).join("")}</tbody></table></div>`;
   return occBanner() + summary + `<div class="sec"><h2>Care teams</h2><p>Patients per person and care level</p></div><div class="three">${cross("Consultant","Consultant")}${cross("Case_Manager","Case manager")}${cross("Nurse_Team_Leader","Nurse team leader")}</div>
-    <div class="sec"><h2>Mix</h2></div><div class="two">${dist("Sales_Channel","Sales channel")}${dist("Smart_Pricing","Smart pricing")}</div>` + roster;
+    <div class="sec"><h2>Mix · hospital beds</h2><p>ICU, IMCU and ward · ${hosp.length} patients</p></div><div class="two">${dist("Sales_Channel","Sales channel",hosp)}${dist("Smart_Pricing","Smart pricing",hosp)}</div>
+    <div class="sec"><h2>Mix · special nurse</h2><p>${spn.length} patients</p></div><div class="two">${dist("Sales_Channel","Sales channel",spn)}${dist("Smart_Pricing","Smart pricing",spn)}</div>` + roster;
 }
 
 /* daily trend of ER, ambulatory and assessment visits and their conversion to INP (every occupancy report) */
@@ -3750,10 +3754,20 @@ hTrends = function(){
 }
 /* ============================================================
    GLOBAL FILTERS (whole system): City (Cairo = New Cairo + Mohandessen, or Alex) and Business unit
-   (Digital = Digital-Pure · Business Development = Medical Sales, Corporate, Community).
+   (Digital = Digital-Pure · Business Development = Medical Sales, Corporate, Community, Family Medicine).
    The data itself is filtered once, so every page, table, chart and PDF follows.
    ============================================================ */
-const UNIT_CH = {Digital:["Digital-Pure"], BD:["Medical Sales","Corporate","Community"]};
+function normCh(c){ const s=String(c??"").trim(), k=s.toLowerCase().replace(/[^a-z]/g,"");
+  if (!k) return s;
+  if (k.startsWith("digital")) return "Digital-Pure";
+  if (k.startsWith("fam")) return "Family Medicine";
+  if (k.startsWith("medical")) return "Medical Sales";
+  if (k.startsWith("corp")) return "Corporate";
+  if (k.startsWith("comm")) return "Community";
+  if (k.startsWith("word")||k==="wom") return "Word Of Mouth";
+  if (k.startsWith("bill")) return "Billboard";
+  return s; }
+const UNIT_CH = {Digital:["Digital-Pure"], BD:["Medical Sales","Corporate","Community","Family Medicine"]};
 const UNIT_LABEL = {All:"All units", Digital:"Digital", BD:"Business Development"};
 const cityBUs = () => BU_ORDER.filter(b=>!state.city||state.city==="All"||areaOf(b)===state.city);
 const leadCity = b => b==="Alex" ? "Alex" : (["New Cairo","Mohandessen","Cairo area"].includes(b) ? "Cairo" : null);
@@ -3763,14 +3777,14 @@ function filterTabs(TT){
   const city=state.city||"All", unit=state.unit||"All", chs=UNIT_CH[unit], out={};
   for (const [n,a] of Object.entries(TT||{})){
     if (!a||!a.length||n==="Settings"||n==="Users"||LEAD_TABS.includes(n)){ out[n]=a; continue; }
-    if (chs && (n==="FamilyMedicine"||n==="Hist_FM")){ out[n]=[a[0]]; continue; }   // family medicine is neither Digital nor BD
+    if (chs && (n==="FamilyMedicine"||n==="Hist_FM")){ out[n]=chs.includes("Family Medicine")?a:[a[0]]; continue; }   // family medicine belongs to Business Development
     const h=a[0].map(x=>String(x??"").trim()), bi=h.indexOf("BU"), ri=h.indexOf("Region"), ci=h.indexOf("Channel")>=0?h.indexOf("Channel"):h.indexOf("Sales_Channel");
     out[n]=[a[0], ...a.slice(1).filter(r=>{
       if (city!=="All"){
         if (bi>=0){ const b=fixBU(String(r[bi]??"").trim()); if (b && (b==="Group" || areaOf(b)!==city)) return false; }
         else if (ri>=0){ const g=String(r[ri]??"").trim(); if (g && g!==city) return false; }
       }
-      if (chs && ci>=0){ const c=String(r[ci]??"").trim(); if (!chs.includes(c)) return false; }
+      if (chs && ci>=0){ if (!chs.includes(normCh(r[ci]))) return false; }
       return true; })];
   }
   return out;
