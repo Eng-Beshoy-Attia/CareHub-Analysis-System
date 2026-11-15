@@ -441,6 +441,12 @@ table.daygrid td.l,table.daygrid th:first-child{text-align:left;min-width:150px;
 
 .mcards .mcard .vb{white-space:normal;max-width:100%}
 
+.daynav{display:flex;align-items:center;gap:12px;margin:4px 0 14px;flex-wrap:wrap}.daynav h2{margin:0;font-size:20px;color:var(--navy);flex:1;text-align:center}
+.daynav .btn[disabled]{opacity:.35;cursor:default}
+
+.kcards.k3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:700px){.kcards.k3{grid-template-columns:1fr 1fr}}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -823,14 +829,14 @@ const PAGES = [
   {id:"h_acc", label:"Accounts history", grp:"Historical"},
   {id:"h_fm", label:"Family medicine history", grp:"Historical"}
 ];
-PAGES.push({id:"leads", label:"Leads", grp:"Leads"},{id:"leads_trends", label:"Leads trends", grp:"Leads"},{id:"ops", label:"Case managers · charge per case", grp:"Operation"},{id:"ops_cases", label:"Cases", grp:"Operation"},{id:"ops_ch", label:"By sales channel", grp:"Operation"},{id:"ops_kpi", label:"Operational KPIs", grp:"Operation"},{id:"ops_ntl", label:"Nurse team leaders · LOS", grp:"Operation"},{id:"ops_er", label:"ER conversion", grp:"Operation"},{id:"ops_amb", label:"Ambulatory conversion", grp:"Operation"},{id:"ops_hist", label:"Charge history", grp:"Operation history"},
+PAGES.push({id:"leads", label:"Leads", grp:"Leads"},{id:"leads_trends", label:"Leads trends", grp:"Leads"},{id:"leads_day", label:"Day view", grp:"Leads"},{id:"ops", label:"Case managers · charge per case", grp:"Operation"},{id:"ops_cases", label:"Cases", grp:"Operation"},{id:"ops_ch", label:"By sales channel", grp:"Operation"},{id:"ops_kpi", label:"Operational KPIs", grp:"Operation"},{id:"ops_ntl", label:"Nurse team leaders · LOS", grp:"Operation"},{id:"ops_er", label:"ER conversion", grp:"Operation"},{id:"ops_amb", label:"Ambulatory conversion", grp:"Operation"},{id:"ops_hist", label:"Charge history", grp:"Operation history"},
   {id:"hist_kpi", label:"Operational KPIs history", grp:"Operation history"},{id:"hist_conv", label:"ER & ambulatory history", grp:"Operation history"},{id:"hist_los", label:"LOS history", grp:"Operation history"},{id:"hist_svc", label:"Service lines", grp:"Operation history"},{id:"ops_svc", label:"Service lines", grp:"Operation"},
   {id:"ia", label:"Revenue drivers", grp:"Informative analysis"},{id:"ia_funnel", label:"Leads → revenue", grp:"Informative analysis"},{id:"ia_stake", label:"Value at stake", grp:"Informative analysis"});
 PAGES.forEach(p=>{ if(!p.grp) p.grp="Commercial"; });
 { const L=Object.fromEntries(PAGES.map(p=>[p.id,p])), order=[
     ["occ","Occupancy"],["occ_pat","Occupancy"],["occ_inp","Occupancy"],["occ_flow","Occupancy"],
     ["overview","Commercial"],["team","Commercial"],["fm","Commercial"],["accounts","Commercial"],["visits","Commercial"],["ch_rep","Commercial"],
-    ["leads","Leads"],["leads_trends","Leads"],
+    ["leads","Leads"],["leads_trends","Leads"],["leads_day","Leads"],
     ["ops_kpi","Operation","Operational KPIs"],["ops_er","Operation","ER conversion"],["ops","Operation","Case managers"],["ops_amb","Operation","Ambulatory conversion"],["ops_svc","Operation","Service lines"],["ops_ntl","Operation","LOS · nurse team leaders"],["ops_ch","Operation","By sales channel"],["ops_cases","Operation","Cases"],
     ["h_trends","Commercial history"],["h_team","Commercial history"],["h_acc","Commercial history"],["h_fm","Commercial history"],["ops_hist","Operation history","Case managers history"],["hist_kpi","Operation history","Operational KPIs history"],["hist_conv","Operation history","ER & ambulatory history"],["hist_los","Operation history","LOS history"],["hist_svc","Operation history","Service lines"],
     ["ia","Informative analysis"],["ia_funnel","Informative analysis"],["ia_stake","Informative analysis"]];
@@ -1144,6 +1150,17 @@ function _renderChrome(){
     $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
     renderMobile(page, sub.replace("Informative analysis · ","")); return;
   }
+  if (state.page==="leads_day"){
+    const ds=ldayDates(); if(!ds.includes(state.ldd)) state.ldd=ds[0];
+    const all=(DB.Leads||[]).filter(l=>l.date);
+    f = `<label>Day<select data-f="ldd">${ds.slice(0,400).map(x=>`<option value="${x}" ${x===state.ldd?"selected":""}>${parseDate(x).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</option>`).join("")}</select></label>`;
+    f += sel("Business unit","lbu",["All",...uniq(all,"bu").sort()]);
+    f += sel("Came through","lin",["All",...LEAD_TABS.map(t=>t==="Inbound"?"Hotline":t).filter(t=>all.some(l=>l.intake===t))]);
+    f += `<label class="toggle"><input type="checkbox" data-f="lclean" ${state.lclean?"checked":""}> Service requests only</label>`;
+    const sub=`Leads · ${state.ldd?parseDate(state.ldd).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):""}`;
+    $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
+    renderMobile(page, sub.replace("Leads · ","")); return;
+  }
   if (state.page==="ops_svc"){
     f = `${(state.page==="hist_svc"||state.page==="ops_svc")?(()=>{ const sm=svcMonths(); if(!sm.includes(state.svT)) state.svT=sm.at(-1); if(!sm.includes(state.svF)||state.svF>state.svT) state.svF=sm[0]; return `<label>From<select data-f="svF">${sm.map(x=>`<option value="${x}" ${x===state.svF?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label><label>To<select data-f="svT">${sm.map(x=>`<option value="${x}" ${x===state.svT?"selected":""}>${monthLabel(x)}</option>`).join("")}</select></label>`; })():""}` + sel("Business unit","hob",["All",...cityBUs()]);
     sub = `Operation · service lines · ${state.hob==="All"?(state.city&&state.city!=="All"?state.city:"all branches"):state.hob}`;
@@ -1268,7 +1285,7 @@ const IC = {
 const TABS_SPACE = {
   perf:[["overview","Overview","overview"],["team","Team","team"],["fm","Family","occ"],["ch_rep","Channels","trends"]],
   hist:[["h_trends","Trends","trends"],["h_team","Team","team"],["ops_hist","Case mgrs","overview"],["hist_conv","ER/Amb","leads"]],
-  leads:[["leads","Leads","leads"],["leads_trends","Trends","trends"]],
+  leads:[["leads","Leads","leads"],["leads_trends","Trends","trends"],["leads_day","Day","occ"]],
   occ:[["occ","Occupancy","occ"],["occ_pat","Patients","team"],["occ_inp","INP","leads"]],
   ops:[["ops_kpi","KPIs","occ"],["ops_er","ER","leads"],["ops","Case mgrs","team"],["ops_amb","Ambulatory","overview"]],
   ia:[["ia","Drivers","trends"],["ia_funnel","Funnel","leads"],["ia_stake","At stake","overview"]]
@@ -1353,7 +1370,7 @@ function render(){
   const need={team:"Accounts",accounts:"Accounts",fm:"FamilyMedicine",visits:"Visits"}[state.page];
   if (need && !inMonth(DB[need]||[]).length){ const lm=latestWith(need);
     v.innerHTML = `<div class="panel empty">${periodLabel()} has no ${state.page==="fm"?"Family Medicine":"sales-team"} detail in the sheet yet (only the business-unit report).${lm?`<div style="margin-top:14px"><button class="btn gold" data-gomonth="${lm}">Show ${monthLabel(lm)}</button></div>`:""}</div>`; return; }
-  v.innerHTML = ({overview, leads:leadsPage, leads_trends:leadsTrends, team, accounts, fm, visits})[state.page]();
+  v.innerHTML = ({overview, leads:leadsPage, leads_trends:leadsTrends, leads_day:leadsDay, team, accounts, fm, visits})[state.page]();
   cardify(v);
 }
 
@@ -1597,7 +1614,7 @@ const chColor = c => CH_COLOR[c] || "#94A3B8";
 function niceMax(v){ if (v<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const n=v/p; return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p; }
 function chart({labels, bars=[], lines=[], stacked=true, w=900, h=260, fmtY=fmtC, yMax=null, tipFmt=null, barLabels=null, deltas=null, marks=null}){
   if (innerWidth<=700){ w = Math.max(330, Math.min(w, innerWidth-28)); h = Math.round(h*0.92); }
-  const L=54,R=14,T=barLabels?26:14,B=deltas?50:30, iw=w-L-R, ih=h-T-B, n=labels.length;
+  const L=54,R=14,T=barLabels?(barLabels.some(b=>b&&typeof b==="object"&&b.s)?40:26):14,B=deltas?50:30, iw=w-L-R, ih=h-T-B, n=labels.length;
   const colMax = labels.map((_,i)=> stacked ? bars.reduce((s,b)=>s+(b.values[i]||0),0) : Math.max(0,...bars.map(b=>b.values[i]||0)));
   const lineMax = Math.max(0,...lines.flatMap(l=>l.values.filter(v=>v!=null)));
   const ym = yMax ?? niceMax(Math.max(...colMax, lineMax)*1.05);
@@ -1611,7 +1628,7 @@ function chart({labels, bars=[], lines=[], stacked=true, w=900, h=260, fmtY=fmtC
   labels.forEach((_,i)=>{
     if (stacked){ let acc=0; bars.forEach(b=>{ const v=b.values[i]||0; if(!v) return; const y1=y(acc+v), y0=y(acc); g+=`<rect x="${x(i)-bw/2}" y="${y1}" width="${bw}" height="${Math.max(y0-y1,0)}" fill="${b.color}" rx="2"/>`; acc+=v; }); }
     else { const gw=bw/Math.max(bars.length,1); bars.forEach((b,j)=>{ const v=b.values[i]||0; g+=`<rect x="${x(i)-bw/2+j*gw}" y="${y(v)}" width="${gw-2}" height="${Math.max(y(0)-y(v),0)}" fill="${b.color}" rx="2"/>`; }); }
-    if (barLabels && barLabels[i]!=null){ const lb=typeof barLabels[i]==="object"?barLabels[i]:{t:barLabels[i]}; g+=`<text x="${x(i)}" y="${y(colMax[i])-7}" text-anchor="middle" class="bl" ${lb.c?`style="fill:${lb.c}"`:""}>${lb.t}</text>`; }
+    if (barLabels && barLabels[i]!=null){ const lb=typeof barLabels[i]==="object"?barLabels[i]:{t:barLabels[i]}; g+= lb.s ? `<text x="${x(i)}" y="${y(colMax[i])-22}" text-anchor="middle" class="bl" ${lb.c?`style="fill:${lb.c}"`:""}>${lb.t}</text><text x="${x(i)}" y="${y(colMax[i])-7}" text-anchor="middle" class="bl" style="font-size:11px;font-weight:500;fill:var(--muted)">${lb.s}</text>` : `<text x="${x(i)}" y="${y(colMax[i])-7}" text-anchor="middle" class="bl" ${lb.c?`style="fill:${lb.c}"`:""}>${lb.t}</text>`; }
   });
   lines.forEach(l=>{
     const pts = l.values.map((v,i)=> v==null?null:`${x(i)},${y(v)}`);
@@ -2065,7 +2082,7 @@ function occINP(){
    ============================================================ */
 const OPS_TABS = {Ops_Cases:["Month","BU","Case_Manager","Case","MTD_Target","Actual_Charge"], Ops_Benchmark:["Category","Benchmark"],
   Ops_KPI:["Month","BU","KPI","Actual"], Ops_NTL:["Month","BU","Nurse_Team_Leader","Actual_LOS"], Ops_NTL_Cases:["Month","BU","Nurse_Team_Leader","Case","Actual_LOS"], Ops_ER:["Month","BU","ER_Patients","Actual_Conv"], Ops_LOS:["Month","BU","Actual_LOS","MTD_LOS_Target"], Ops_OPD:["Month","BU","Section","Patients"], Flow_Targets:["Month","Channel","ER_Target"], Ops_Channel_Summary:["Month","BU","Sales_Channel","Cases"], Ops_Service_Lines:["Month","BU","Section","Patients"]};
-const OPS_TEXT = new Set(["Month","As_Of","BU","Case_Manager","Case","New_Old","Entry_Date","Off_Date","Consultant","Grade","Category","Service_Column","KPI","Section","Nurse_Team_Leader","Channel","Sales_Channel","Channel_Source"]);
+const OPS_TEXT = new Set(["Month","As_Of","BU","Case_Manager","Case","New_Old","Entry_Date","Off_Date","Consultant","Grade","Category","Service_Column","KPI","Section","Nurse_Team_Leader","Channel","Sales_Channel","Channel_Source","City"]);
 const SERV_COLS = [["Hospitality","Hospitality"],["Dr_Visit","Dr visit"],["Lab","Lab"],["Medical_Supervision","Medical supervision"],["Devices","Devices"],["Medical_Procedures","Medical procedures"],["Physiotherapy","Physiotherapy"],["Radiology","Radiology"],["Nursing_Procedures","Nursing procedures"],["Ambulance","Ambulance"]];
 const PKG = [["ICU_Days","ICU","var(--navy)"],["IMCU_Days","IMCU","#7FA6CF"],["Ward_Days","Ward","var(--gold)"],["SN24_Days","Special nurse 24h","#3E8E7E"],["SN12_Days","Special nurse 12h","#9B6FB0"]];
 const BU_ORDER = ["Alex","New Cairo","Mohandessen"];
@@ -2249,17 +2266,32 @@ function leadsTrends(){
   const lost=per.map(o=>o.total?(o.Rama+o.Closed)/o.total:null), done=rate("Done"), canc=rate("Cancel"), conv=per.map(o=>o.svcDone?o.conv/o.svcDone:null);
   const full=part?per.slice(0,-1):per;
   const volT=trendOf(full.map(o=>o.total));
-  const cards=[["Leads per month",per.map(o=>o.total),volT,v=>fmt(v),false,null],
-    ["Done rate",done,trendPts(done),v=>pctTxt(v),false,true],
-    ["Lost at hotline (Rama + Closed)",lost,trendPts(lost),v=>pctTxt(v),true,true],
-    ["Cancelled after operation",canc,trendPts(canc),v=>pctTxt(v),true,true],
-    ["Converted to INP (of done services)",conv,trendPts(conv),v=>pctTxt(v),false,true]];
-  const cardHtml=`<div class="mcards lt">${cards.map(([lab,vals,t,f,bad,isRate])=>`<div class="mcard" style="cursor:default"><span>${lab}</span><b class="num">${f(vals.at(-1)??0)}</b>
+  const cards=[["vol","Leads per month",per.map(o=>o.total),volT,v=>fmt(v),false,null],
+    ["done","Done rate",done,trendPts(done),v=>pctTxt(v),false,true],
+    ["lost","Lost at hotline (Rama + Closed)",lost,trendPts(lost),v=>pctTxt(v),true,true],
+    ["canc","Cancelled after operation",canc,trendPts(canc),v=>pctTxt(v),true,true],
+    ["conv","Converted to INP (of done services)",conv,trendPts(conv),v=>pctTxt(v),false,true]];
+  const K=cards.some(c=>c[0]===state.ltk)?state.ltk:"vol", KC=cards.find(c=>c[0]===K);
+  const cardHtml=`<div class="mcards lt">${cards.map(([key,lab,vals,t,f,bad,isRate])=>`<button class="mcard ${key===K?"on":""}" data-ltk="${key}"><span>${lab}</span><b class="num">${f(vals.at(-1)??0)}</b>
       ${isRate?ptsBadge(t,bad):vBadge(t)}<div class="mspark">${miniArea(vals.map(v=>(v??0)*(isRate?100:1)),bad?"#D64545":"var(--navy)",months.map(mShort),260,64,false)}</div>
-      <small class="mfoot">${mShort(months[0])}: <b>${f(vals[0]??0)}</b> → ${mShort(months.at(-1))}: <b>${f(vals.at(-1)??0)}</b></small></div>`).join("")}</div>`;
+      <small class="mfoot">${mShort(months[0])}: <b>${f(vals[0]??0)}</b> → ${mShort(months.at(-1))}: <b>${f(vals.at(-1)??0)}</b></small></button>`).join("")}</div>`;
   const bars=OUTCOMES.map(k=>({name:OUT_LABEL[k],color:OUT_COLOR[k],values:per.map(o=>o[k])})).filter(b=>b.values.some(v=>v));
-  const main=chart({labels,h:320,bars,barLabels:per.map(o=>({t:pctTxt(o.total?o.Done/o.total:null)+" done"})),deltas:per.map((o,i)=>i?pctChange(per[i-1].total,o.total):null),fmtY:fmtC});
-  const verdict=`<div class="verdict" style="--c:${VERDICT[volT.verdict].c};--bg:${VERDICT[volT.verdict].bg}"><div class="vi">${VERDICT[volT.verdict].i}</div><div>${vSentence("Lead volume",volT)}${part?" (the running month is left out of the volume trend)":""}. Done rate went from <b>${pctTxt(done[0])}</b> to <b>${pctTxt(done.at(-1))}</b>, and leads lost at the hotline from <b>${pctTxt(lost[0])}</b> to <b>${pctTxt(lost.at(-1))}</b>.</div></div>`;
+  let main, rateVerdict="";
+  if (K==="vol") main=chart({labels,h:320,bars,barLabels:per.map(o=>({t:fmt(o.total),s:`${pctTxt(o.total?o.Done/o.total:null)} done`})),deltas:per.map((o,i)=>i?pctChange(per[i-1].total,o.total):null),fmtY:fmtC});
+  else {
+    const [, lab, vals, , , bad] = KC, v=vals.map(x=>x==null?null:x*100), ok=v.filter(x=>x!=null);
+    const n=v.length, xs=v.map((_,i)=>i).filter(i=>v[i]!=null), mx=xs.reduce((a,b)=>a+b,0)/xs.length, my=xs.reduce((a,i)=>a+v[i],0)/xs.length;
+    const slope=xs.reduce((a,i)=>a+(i-mx)*(v[i]-my),0)/(xs.reduce((a,i)=>a+(i-mx)**2,0)||1), line=v.map((_,i)=>my+slope*(i-mx));
+    const goodUp=!bad, better=goodUp?slope>0.3:slope<-0.3, worse=goodUp?slope<-0.3:slope>0.3, col=better?"var(--green)":worse?"var(--red)":"#B5651B";
+    const best=v.indexOf(goodUp?Math.max(...ok):Math.min(...ok)), worst=v.indexOf(goodUp?Math.min(...ok):Math.max(...ok)), marks={};
+    marks[best]={bg:"rgba(46,158,91,.08)",c:"var(--green)",t:"BEST"}; if(worst!==best) marks[worst]={bg:"rgba(214,69,69,.07)",c:"var(--red)",t:"LOWEST"};
+    main=chart({labels,h:320,yMax:Math.min(100,Math.ceil(Math.max(...ok)*1.25/10)*10||100),bars:[{name:lab,color:bad?"#D64545":K==="conv"?"#2E9E5B":"var(--navy)",values:v.map(x=>x??0)}],
+      barLabels:v.map(x=>x==null?"":Math.round(x)+"%"),deltas:v.map((x,i)=>i&&v[i-1]!=null&&x!=null?(x-v[i-1])/100:null),marks,
+      lines:[{name:"Trend line",color:col,values:line,dash:"7 5",noDots:true,width:2.6}],fmtY:x=>Math.round(x)+"%",tipFmt:x=>x==null?"—":Math.round(x)+"%"});
+    const word=better?(goodUp?"improving":"falling, which is good"):worse?(goodUp?"falling":"rising"):"about flat";
+    rateVerdict=`<div class="verdict" style="--c:${col};--bg:${better?"#E8F5EE":worse?"#FDECEC":"#FFF4E5"}"><div class="vi">${better?"▲":worse?"▼":"↕"}</div><div><b>${lab} is ${word}</b>, about <b>${slope>=0?"+":""}${slope.toFixed(1)} pts per month</b> on the trend line: from <b>${pctTxt(vals[0])}</b> in ${monthLabel(months[0])} to <b>${pctTxt(vals.at(-1))}</b> in ${monthLabel(months.at(-1))}. Best month ${monthLabel(months[best])} (${pctTxt(vals[best])}), lowest ${monthLabel(months[worst])} (${pctTxt(vals[worst])}).</div></div>`;
+  }
+  const verdict= rateVerdict ? rateVerdict : `<div class="verdict" style="--c:${VERDICT[volT.verdict].c};--bg:${VERDICT[volT.verdict].bg}"><div class="vi">${VERDICT[volT.verdict].i}</div><div>${vSentence("Lead volume",volT)}${part?" (the running month is left out of the volume trend)":""}. Done rate went from <b>${pctTxt(done[0])}</b> to <b>${pctTxt(done.at(-1))}</b>, and leads lost at the hotline from <b>${pctTxt(lost[0])}</b> to <b>${pctTxt(lost.at(-1))}</b>.</div></div>`;
   // channels
   const chs=sortCh(uniq(all.filter(l=>months.includes(l.Month)),"channel"));
   const chRows=chs.map(ch=>{ const p=months.map(m=>outCounts(all.filter(l=>l.Month===m&&l.channel===ch))); const vol=p.map(o=>o.total), dr=p.map(o=>o.total?o.Done/o.total:null);
@@ -2285,7 +2317,7 @@ function leadsTrends(){
   const docGrid=pmGrid(docRows.filter(r=>docKeep.has(r.Doctor)), r=>r.Doctor, x=>`<span class="name">${esc(x.rs[0].Doctor)}</span>`, "T","A", months, null)
     .replace("<th>Target</th><th>Achieved</th><th>Period</th>","<th>Leads</th><th>Done</th><th>Done rate</th>");
   const intakeNote = state.lin==="All" && (DB.Leads||[]).some(l=>l.intake!=="Hotline") ? `<p class="note">Website and Social Media leads start in ${monthLabel(leadMonths().find(m=>(DB.Leads||[]).some(l=>l.Month===m&&l.intake!=="Hotline"))||months[0])}; choose “Came through: Hotline” to compare the same intake across all months.</p>` : "";
-  return cardHtml + `<div class="sec"><h2>Leads and outcomes by month</h2>${legendHtml(bars.map(b=>[b.name,b.color]))}</div>${verdict}
+  return cardHtml + `<div class="sec"><h2>${K==="vol"?"Leads and outcomes by month":KC[1]+" by month"}</h2>${K==="vol"?legendHtml(bars.map(b=>[b.name,b.color])):legendHtml([[KC[1],KC[5]?"#D64545":K==="conv"?"#2E9E5B":"var(--navy)"],["Trend line","#94A3B8",1]])}</div>${verdict}
     <div class="panel chartbox">${main}${part?`<p class="note">* ${monthLabel(months.at(-1))} is still running (data to ${dShort(new Date(Math.max(...all.filter(l=>l.Month===months.at(-1)&&l.date).map(l=>l.date))))}).</p>`:""}${intakeNote}</div>
     <div class="sec"><h2>Channels</h2>${legendHtml(chRows.slice(0,6).map(x=>[x.ch,chColor(x.ch)]))}</div>
     <div class="two"><div class="panel chartbox"><h3 class="ct">Done rate by channel</h3>${drChart}</div><div class="panel chartbox"><h3 class="ct">Leads by channel</h3>${volChart}</div></div>
@@ -3071,10 +3103,21 @@ function chReport(){
 
 /* ---------- Commercial patient flow: ER, ambulatory and assessment visits brought vs target ---------- */
 const FLOW_K=[["ER","ER_Cases","ER_INP","ER_Target","ER_Conv_Target"],["Ambulatory","AMB_Cases","AMB_INP","AMB_Target","AMB_Conv_Target"],["Assessment","Assess_Cases","Assess_INP","Assess_Target","Assess_Conv_Target"]];
+/* patient-flow targets for a month: by city when the Flow_Targets tab has a City column (Cairo / Alex),
+   otherwise company-wide (then only shown for Cairo & Alex together) */
+function ftFor(month, branch){
+  const all=DB.Flow_Targets||[], tm=[...new Set(all.map(r=>r.Month))].sort().filter(x=>x<=month).at(-1); if(!tm) return {tm:null,rows:[]};
+  let R=all.filter(r=>r.Month===tm); const hasCity=R.some(r=>String(r.City||"").trim());
+  if (hasCity){ if (branch && branch!=="All"){ if (branch!=="Alex") return {tm,rows:[]}; R=R.filter(r=>r.City==="Alex"); } }
+  else if ((state.city&&state.city!=="All") || (branch&&branch!=="All")) return {tm,rows:[]};
+  const g={}; R.forEach(r=>{ const x=g[r.Channel]||(g[r.Channel]={Channel:r.Channel,ER_Target:0,AMB_Target:0,Assess_Target:0,ER_Conv_Target:r.ER_Conv_Target,AMB_Conv_Target:r.AMB_Conv_Target,Assess_Conv_Target:r.Assess_Conv_Target});
+    ["ER_Target","AMB_Target","Assess_Target"].forEach(k=>x[k]+=(+r[k]||0)); });
+  return {tm, rows:Object.values(g)};
+}
 function flowStatus(month, bu){
   const conv=(DB.Occ_Conversion||[]).filter(r=>cycleKey(parseDate(r.Date))===month&&(!bu||bu==="All"||r.BU===bu)); if(!conv.length) return null;
-  const tm=[...new Set((DB.Flow_Targets||[]).map(r=>r.Month))].sort().filter(m=>m<=month).at(-1); if(!tm) return null;
-  const T=(DB.Flow_Targets||[]).filter(r=>r.Month===tm), asof=conv.map(r=>r.Date).sort().at(-1), f=fracAt(month,asof);
+  const FF=ftFor(month,bu), tm=FF.tm; if(!tm||!FF.rows.length) return null;
+  const T=FF.rows, asof=conv.map(r=>r.Date).sort().at(-1), f=fracAt(month,asof);
   const valINP=(()=>{const o=(DB.Ops_Cases||[]).filter(r=>r.New_Old.toLowerCase()==="new"&&(!bu||bu==="All"||r.BU===bu)); return o.length?sum(o,"Actual_Charge")/o.length:0;})();
   const rows=T.map(t=>{ const a=conv.filter(r=>r.Channel===t.Channel); const k=FLOW_K.map(([lab,c,i,tk,ck])=>{ const mtd=t[tk]*f, act=sum(a,c), inp=sum(a,i), gap=Math.max(mtd-act,0);
       return {lab,act,inp,mtd,full:t[tk],conv:t[ck],gap,lostINP:gap*t[ck],expINP:act*t[ck]}; }); return {ch:t.Channel,k}; });
@@ -3640,10 +3683,10 @@ function occFlow(){
   const adm=S(daily,"Admitted_Upgraded"), dis=S(daily,"Discharged_Downgraded");
   const el=days.length, run=parseDate(lastDay)<c.end;
   // targets (company level) only when all branches are shown
-  const tm=[...new Set((DB.Flow_Targets||[]).map(r=>r.Month))].sort().filter(x=>x<=m).at(-1), FT=state.obu==="All"&&tm?(DB.Flow_Targets||[]).filter(r=>r.Month===tm):[];
+  const FF=ftFor(m,state.obu), tm=FF.tm, FT=FF.rows;
   const frac=el/c.days, tgt=(key,ch)=>{ const tk={ER:"ER_Target",AMB:"AMB_Target",AS:"Assess_Target"}[key]; const r=FT.filter(x=>!ch||x.Channel===ch); return r.length?sum(r,tk)*frac:null; };
   const kpi=(key)=>{ const [l,,,bm]=FLOW_KINDS[key], x=tot[key], T=tgt(key);
-    return `<div class="panel kcard"><span>${l} patients</span><b class="num">${fmt(x.n)}</b><div class="kt">${T!=null?`MTD target ${fmtV1(T)} ${chip(ratio(x.n,T))}`:`${fmtV1(x.n/el)} per day`}</div>
+    return `<div class="panel kcard"><span>${l} patients</span><b class="num">${fmt(x.n)}</b><div class="kt">${T!=null?`MTD target ${fmtV1(T)} ${chip(ratio(x.n,T))} · month ${fmt(Math.round(T/frac))}`:`${fmtV1(x.n/el)} per day`}</div>
       <small><b>${fmt(x.i)}</b> admitted to INP · conversion ${convChip(x.i,x.n,bm)} <span class="of">target ${Math.round(bm*100)}%</span></small></div>`; };
   const head=`<div class="sec"><h2>${monthLabel(m)}${run?" so far":""} · ${state.obu==="All"?"all branches":esc(state.obu)}</h2><p>${el} days · from the daily occupancy reports${first&&first>c.start.toISOString().slice(0,10)&&inC(first)?` · the ER / ambulatory section starts ${dShort(parseDate(first))}`:""}</p></div>
     <div class="kcards">${kpi("ER")}${kpi("AMB")}${kpi("AS")}
@@ -3652,10 +3695,10 @@ function occFlow(){
       <div class="panel kcard"><span>Discharges / downgrades</span><b class="num" style="color:var(--red)">${fmt(dis)}</b><div class="kt">${fmtV1(dis/el)} per day</div><small>net ${adm-dis>=0?"+":""}${fmt(adm-dis)} patients</small></div>
       <div class="panel kcard"><span>Admissions to discharges</span><b class="num" style="color:${adm>=dis?"var(--green)":"var(--red)"}">${dis?Math.round(adm/dis*100)+"%":"—"}</b><div class="kt">${fmt(adm)} in : ${fmt(dis)} out</div><small>${adm>dis?"more patients coming in than leaving: the census grows":adm<dis?"more patients leaving than coming in: the census shrinks":"as many in as out"}</small></div></div>`;
   // per sales channel
-  const chT=`<div class="sec"><h2>By sales channel</h2>${FT.length?`<p>Against the company targets, month to date (${pctTxt(frac)} of the cycle)</p>`:""}</div><h3 class="tbl-title">ER, ambulatory and assessment patients and their admissions to INP · each sales channel</h3><div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th>${Object.values(FLOW_KINDS).map(([l])=>`<th>${l}</th><th>→ INP</th>`).join("")}<th>Total INP</th></tr></thead><tbody>
+  const chT=`<div class="sec"><h2>By sales channel</h2>${FT.length?`<p>Against the ${(DB.Flow_Targets||[]).some(r=>r.Month===tm&&String(r.City||"").trim())?(state.obu==="Alex"||state.city==="Alex"?"Alex":state.city==="Cairo"?"Cairo":"Cairo + Alex"):"company"} targets, month to date (${pctTxt(frac)} of the cycle)</p>`:""}</div><h3 class="tbl-title">ER, ambulatory and assessment patients and their admissions to INP · each sales channel</h3><div class="panel tbl-wrap"><table><thead><tr><th>Sales channel</th>${Object.values(FLOW_KINDS).map(([l])=>`<th>${l}</th><th>→ INP</th>`).join("")}<th>Total INP</th></tr></thead><tbody>
     ${chs.map(ch=>{ const r=conv.filter(x=>x.Channel===ch); let ti=0; return `<tr><td class="l name"><i class="sw" style="background:${chColor(ch)}"></i>${esc(ch)}</td>${Object.entries(FLOW_KINDS).map(([key,[l,ck,ik,bm]])=>{ const n=S(r,ck), i=S(r,ik), T=tgt(key,ch); ti+=i;
-      return `<td class="num"><b class="ach">${fmt(n)}</b>${T?` <span class="of">/ ${fmtV1(T)}</span> ${chip(ratio(n,T))}`:""}</td><td class="num"><b class="ach">${fmt(i)}</b> ${convChip(i,n,bm)}<div class="tgt2">target ${Math.round(bm*100)}%</div></td>`;}).join("")}<td class="num"><b class="ach">${fmt(ti)}</b></td></tr>`; }).join("")}
-    <tr class="total"><td class="l">Total</td>${Object.entries(FLOW_KINDS).map(([key,[l,ck,ik,bm]])=>{const x=tot[key], T=tgt(key); return `<td class="num">${fmt(x.n)}${T?` / ${fmtV1(T)} ${chip(ratio(x.n,T))}`:""}</td><td class="num">${fmt(x.i)} ${convChip(x.i,x.n,bm)}<div class="tgt2">target ${Math.round(bm*100)}%</div></td>`;}).join("")}<td class="num">${fmt(tot.ER.i+tot.AMB.i+tot.AS.i)}</td></tr></tbody></table></div>`;
+      return `<td class="num"><b class="ach">${fmt(n)}</b>${T?` <span class="of">/ ${fmtV1(T)}</span> ${chip(ratio(n,T))}<div class="tgt2">Target ${fmt(Math.round(T/frac))}</div>`:""}</td><td class="num"><b class="ach">${fmt(i)}</b> ${convChip(i,n,bm)}<div class="tgt2">target ${Math.round(bm*100)}%</div></td>`;}).join("")}<td class="num"><b class="ach">${fmt(ti)}</b></td></tr>`; }).join("")}
+    <tr class="total"><td class="l">Total</td>${Object.entries(FLOW_KINDS).map(([key,[l,ck,ik,bm]])=>{const x=tot[key], T=tgt(key); return `<td class="num">${fmt(x.n)}${T?` / ${fmtV1(T)} ${chip(ratio(x.n,T))}<div class="tgt2">Target ${fmt(Math.round(T/frac))}</div>`:""}</td><td class="num">${fmt(x.i)} ${convChip(x.i,x.n,bm)}<div class="tgt2">target ${Math.round(bm*100)}%</div></td>`;}).join("")}<td class="num">${fmt(tot.ER.i+tot.AMB.i+tot.AS.i)}</td></tr></tbody></table></div>`;
   // day by day for the chosen measure, stacked by channel
   const K=state.ofk||"ER", isInp=K==="INP";
   const val=(d,ch)=>{ const r=conv.filter(x=>x.Date===d&&x.Channel===ch); return isInp? S(r,"ER_INP")+S(r,"AMB_INP")+S(r,"Assess_INP") : S(r,FLOW_KINDS[K][1]); };
@@ -3783,6 +3826,7 @@ function filterTabs(TT){
       if (city!=="All"){
         if (bi>=0){ const b=fixBU(String(r[bi]??"").trim()); if (b && (b==="Group" || areaOf(b)!==city)) return false; }
         else if (ri>=0){ const g=String(r[ri]??"").trim(); if (g && g!==city) return false; }
+        else if (h.indexOf("City")>=0){ const g=String(r[h.indexOf("City")]??"").trim(); if (g && g!==city) return false; }
       }
       if (chs && ci>=0){ if (!chs.includes(normCh(r[ci]))) return false; }
       return true; })];
@@ -3885,6 +3929,51 @@ function histSvc(){
     ${bus.length>1?`<div class="sec"><h2>Branches</h2></div><div class="two">${rcards}</div>`:""}
     ${mix?`<div class="sec"><h2>Mix of service lines</h2><p>Share of ${mLabel.toLowerCase()} each month</p></div><div class="panel chartbox">${mix}${legendHtml(sS.map(x=>[x.s,secColor(x.s)]))}</div>`:""}
     <div class="sec"><h2>Month by month</h2><p>Green = 15% above the line's own average, red = 15% below</p></div>${table}`;
+}
+
+/* ============================================================
+   LEADS · DAY VIEW: one whole day in detail
+   ============================================================ */
+function ldayRows(){
+  return (DB.Leads||[]).filter(l=>l.date && (state.lbu==="All"||l.bu===state.lbu) && (state.lin==="All"||l.intake===state.lin) && (!state.lclean||!l.nonLead));
+}
+const ldayDates = () => [...new Set(ldayRows().map(l=>isoDate(l.date)))].sort().reverse();
+function leadsDay(){
+  const ds=ldayDates(); if(!ds.length) return `<div class="panel empty">No leads with a date yet.</div>`;
+  if(!ds.includes(state.ldd)) state.ldd=ds[0];
+  const d=state.ldd, D=parseDate(d), all=ldayRows(), L=all.filter(l=>isoDate(l.date)===d);
+  const i=ds.indexOf(d), prev=ds[i+1], next=ds[i-1];
+  const mon=all.filter(l=>l.Month===cycleKey(D)), mdays=new Set(mon.map(l=>isoDate(l.date))).size||1;
+  const o=outCounts(L), om=outCounts(mon), avg=k=>om[k]/mdays;
+  const vs=(v,a)=>a?`<span class="dl ${v>=a?"up":"down"}">${v>=a?"▲":"▼"} ${Math.abs(Math.round((v-a)/a*100))}%</span> <span class="of">vs avg day (${fmtV1(a)})</span>`:"";
+  const inp=L.filter(l=>l.isINP&&l.outcome==="Done").length, inpAvg=mon.filter(l=>l.isINP&&l.outcome==="Done").length/mdays;
+  const card=(lab,v,a,extra="")=>`<div class="panel kcard"><span>${lab}</span><b class="num">${fmt(v)}</b><small>${extra||vs(v,a)}</small></div>`;
+  const nav=`<div class="daynav"><button class="btn" ${prev?`data-ldd="${prev}"`:"disabled"}>‹ ${prev?dShort(parseDate(prev)):""}</button>
+    <h2>${D.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</h2>
+    <button class="btn" ${next?`data-ldd="${next}"`:"disabled"}>${next?dShort(parseDate(next)):""} ›</button>${pdfBtn("ldayPdf","Day PDF")}</div>`;
+  const oth=o.Closed+o.Open, othAvg=(om.Closed+om.Open)/mdays;
+  const kp=`<div class="kcards k3">${card("Leads",o.total,avg("total"),`Done + Rama + Cancel + Closed / no status · ${vs(o.total,avg("total"))}`)}
+    ${card("Done",o.Done,avg("Done"),`${pctTxt(o.total?o.Done/o.total:null)} of the day · ${vs(o.Done,avg("Done"))}`)}
+    ${card("Converted to INP",inp,inpAvg,`out of the ${fmt(o.Done)} done · ${vs(inp,inpAvg)}`)}
+    ${card("Rama",o.Rama,avg("Rama"),`${pctTxt(o.total?o.Rama/o.total:null)} of the day · stopped at the hotline · ${vs(o.Rama,avg("Rama"))}`)}
+    ${card("Cancel",o.Cancel,avg("Cancel"),`${pctTxt(o.total?o.Cancel/o.total:null)} of the day · ${vs(o.Cancel,avg("Cancel"))}`)}
+    ${card("Closed / no status",oth,othAvg,`${fmt(o.Closed)} closed · ${fmt(o.Open)} with no final status yet`)}</div>`;
+  const bars=(title,key)=>{ const g=[...groupBy(L,key)].map(([k,r])=>({k:k||"Not specified",n:r.length,done:r.filter(x=>x.outcome==="Done").length})).sort((a,b)=>b.n-a.n); const mx=Math.max(1,...g.map(x=>x.n));
+    return `<div class="panel reasons"><h3>${title}<small>${L.length} leads</small></h3>${g.map(x=>`<div class="rs" style="cursor:default"><span class="rl">${esc(x.k)}</span><span class="rb"><i style="width:${x.n/mx*100}%"></i></span><span class="num rn">${x.n} <span class="of">${x.done} done</span></span></div>`).join("")||'<div class="of">—</div>'}</div>`; };
+  const lost=L.filter(l=>l.outcome==="Rama"||l.outcome==="Cancel");
+  const reasons=(()=>{ const g=[...groupBy(lost,"reason")].map(([k,r])=>({k:k||"Not recorded",n:r.length})).sort((a,b)=>b.n-a.n); const mx=Math.max(1,...g.map(x=>x.n));
+    return `<div class="panel reasons"><h3>Why leads were lost<small>${lost.length} rama / cancel</small></h3>${g.map(x=>`<div class="rs" style="cursor:default"><span class="rl">${esc(x.k)}</span><span class="rb"><i style="width:${x.n/mx*100}%;background:var(--red)"></i></span><span class="num rn">${x.n}</span></div>`).join("")||'<div class="of">None lost this day</div>'}</div>`; })();
+  const list=[...L].sort((a,b)=>OUTCOMES.indexOf(a.outcome)-OUTCOMES.indexOf(b.outcome));
+  const tbl=`<div class="panel tbl-wrap"><table class="leads"><thead><tr><th>#</th><th>Patient</th><th>Mobile</th><th>Came through</th><th>BU</th><th>Area</th><th>Channel</th><th>Service</th><th>Details</th><th>Type</th><th>Doctor</th><th>Status</th><th>Reason</th><th>INP</th></tr></thead><tbody>
+    ${list.map((l,k)=>`<tr><td class="l num">${k+1}</td><td class="l" dir="auto">${esc(l.name||"—")}</td><td class="l num">${esc(l.mobile)}</td><td class="l">${esc(l.intake)}</td><td class="l">${esc(l.bu)}</td><td class="l" dir="auto">${esc(l.area||"")}</td><td class="l">${esc(l.channel)}</td><td class="l">${esc(l.service)}</td>
+      <td class="l" dir="auto" style="max-width:260px;white-space:normal">${esc(l.details||"")}</td><td class="l">${esc(l.type)}</td><td class="l">${esc(l.doctor)}</td><td class="l"><span class="ost" style="--c:${OUT_COLOR[l.outcome]}">${OUT_LABEL[l.outcome]}</span></td><td class="l">${esc(l.reason)}</td><td class="l">${l.isINP&&l.outcome==="Done"?'<span class="chip green">INP</span>':""}</td></tr>`).join("")}</tbody></table></div>`;
+  PDF_ACTIONS.ldayPdf=()=>makePdf({title:"Leads · day report",sub:`${D.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${state.lbu!=="All"?" · "+state.lbu:""}${state.lin!=="All"?" · "+state.lin:""}`,landscape:true,
+    kpis:[["Leads",fmt(o.total)],["Done",`${fmt(o.Done)} (${pctTxt(o.total?o.Done/o.total:null)})`],["Converted to INP",fmt(inp)],["Rama",fmt(o.Rama)],["Cancel",fmt(o.Cancel)],["Closed / no status",fmt(o.Closed+o.Open)]],
+    sections:[{h:"Every lead of the day",html:pdfTable(["#","Patient","Mobile","Came through","BU","Channel","Service","Type","Doctor","Status","Reason","INP"],list.map((l,k)=>[k+1,`<span dir="auto">${esc(l.name||"—")}</span>`,esc(l.mobile),l.intake,esc(l.bu),esc(l.channel),esc(l.service),l.type,esc(l.doctor),OUT_LABEL[l.outcome],esc(l.reason),l.isINP&&l.outcome==="Done"?"INP":""]))}]});
+  return nav+kp+`<div class="sec"><h2>Where the day's leads came from</h2></div><div class="two">${bars("Came through","intake")}${bars("Sales channel","channel")}</div>
+    <div class="two" style="margin-top:12px">${bars("Business unit","bu")}${bars("Service requested","service")}</div>
+    <div class="two" style="margin-top:12px">${bars("Triaging doctor","doctor")}${reasons}</div>
+    <div class="sec"><h2>Every lead of the day</h2><p>${fmt(L.length)} leads</p></div>${tbl}`;
 }
 
 /* ---------- Overview ---------- */
@@ -4304,6 +4393,8 @@ document.addEventListener("click", e=>{
   const pdf = e.target.closest("[data-pdf]");
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
+  const ltk = e.target.closest("[data-ltk]"); if (ltk){ state.ltk=ltk.dataset.ltk; render(); return; }
+  const ldd = e.target.closest("[data-ldd]"); if (ldd){ state.ldd=ldd.dataset.ldd; render(); renderChrome(); return; }
   const svk = e.target.closest("[data-svk]"); if (svk){ state.svk=svk.dataset.svk; render(); return; }
   const svs = e.target.closest("[data-svsec]"); if (svs){ state.svsec=svs.dataset.svsec||null; render(); return; }
   const ofk = e.target.closest("[data-ofk]"); if (ofk){ state.ofk=ofk.dataset.ofk; const y=scrollY; render(); scrollTo(0,y); return; }
