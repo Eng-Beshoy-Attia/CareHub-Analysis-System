@@ -447,6 +447,11 @@ table.daygrid td.l,table.daygrid th:first-child{text-align:left;min-width:150px;
 .kcards.k3{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:700px){.kcards.k3{grid-template-columns:1fr 1fr}}
 
+.mbar{height:4px;background:#EEF2F6;border-radius:3px;margin-top:4px;overflow:hidden}.mbar i{display:block;height:100%;background:var(--red);opacity:.7}
+table.grid tr.grp td{background:#F6F8FB;color:var(--navy);font-size:12.5px;letter-spacing:.03em;text-transform:uppercase}
+table.grid tr.sub td{background:#FBFCFD;font-size:12.5px}
+th.click{cursor:pointer;text-decoration:underline dotted}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -2513,7 +2518,7 @@ function iaFunnel(){
     <div class="panel chartbox">${ch}<p class="note">Lines that move together point to the stage that drives revenue. * month still running.</p></div>
     <div class="sec"><h2>How strongly each stage is linked</h2></div>${links}<div class="sec"><h2>Month by month</h2></div>${T}`;
 }
-function iaStake(){
+function stakeItemsAll(){
   const items=[];
   // 1. leads lost at hotline / cancelled, last full lead month
   const lm=leadMonths().filter(m=>!leadPartial(m)), m=lm.at(-1);
@@ -2558,11 +2563,47 @@ function iaStake(){
       how:`${monthLabel(FS.month)} so far (${pctTxt(FS.f)} of the cycle): ${FS.tot.map(x=>`${x.lab} ${fmt(x.act)} of ${fmtV1(x.mtd)}`).join(" · ")}. The shortfall means about ${fmtV1(FS.lostINP)} INP admissions missed at the target conversion rates × ${fmtC(FS.valINP)} per case.${gx?` It explains most of the revenue gap to the MTD target (${fmtC(Math.max(gx.Rev_Target-gx.Rev_Actual,0))}).`:""}`,
       extra:FS.rows.map(r=>`${esc(r.ch)} ${fmtV1(r.k.reduce((s,x)=>s+x.lostINP,0))} INP`).join(" · "),src:"Commercial × Occupancy reports × Operation"}); }
   const bc=FS&&FS.value>0?[]:inMonth(DB.BU_Channel||[]).filter(r=>iaBU(r.BU)); if(bc.length){ const g=buAgg(bc); items.push({k:"Commercial revenue gap to MTD target",page:"overview",v:Math.max(g.Rev_Target-g.Rev_Actual,0),how:`${periodLabel()}: ${fmtC(g.Rev_Actual)} achieved against an MTD target of ${fmtC(g.Rev_Target)} (${state.iareg==="All"?"all branches":esc(state.iareg)}).`,extra:"",src:"Commercial"}); }
-  items.sort((a,b)=>b.v-a.v); const mx=Math.max(1,...items.map(i=>i.v));
-  return iaBanner()+`<div class="sec"><h2>Where the money is</h2><p>Estimated revenue at stake, largest first · click a card to open its dashboard</p></div>
-    <div class="stake">${items.map((i,n)=>`<div class="panel skc click" data-page="${i.page}"><div class="skh"><span class="skn">${n+1}</span><div><b>${esc(i.k)}</b><small>${i.src}</small></div><b class="skv num">${fmtC(i.v)}</b></div>
-      <div class="skb"><i style="width:${i.v/mx*100}%"></i></div><p>${i.how}</p>${i.extra?`<p class="of">${i.extra}</p>`:""}</div>`).join("")}</div>
-    <p class="note">These are estimates that overlap (a lost lead is also an empty bed), so they show where to look first rather than amounts to add up.</p>`;
+  return items;
+}
+
+/* the data as it stood at the end of month m (everything after it hidden), so every line can be worked out month by month */
+function dbUpTo(m){ const o={}; for (const [k,v] of Object.entries(DB)){ if(!Array.isArray(v)||!v.length||typeof v[0]!=="object"){ o[k]=v; continue; }
+    const r0=v[0]; o[k]= ("Month" in r0) ? v.filter(r=>!r.Month||r.Month<=m) : ("Date" in r0) ? v.filter(r=>!r.Date||cycleKey(parseDate(r.Date))<=m) : v; } return o; }
+const STAKE_DROP=["Leads lost at the hotline or cancelled","Empty beds below the occupancy target","Cases below their MTD target","Ambulatory patients not converted to INP"];
+const stakeGrp = i => (i.src==="Commercial"||/^Commercial/.test(i.k)) ? "Sales & Marketing" : "Operation";
+const stakeName = k => k.replace(/^Commercial:\s*/,"").replace(/^Commercial revenue gap to MTD target$/,"Revenue gap to the target (no patient-flow targets this month)");
+function stakeAt(m){ const kDB=DB, kf=state.from, kt=state.to, ko=state.odate; DB=dbUpTo(m); state.from=state.to=m;
+  try{ return stakeItemsAll().filter(i=>!STAKE_DROP.includes(i.k)&&i.v>0).map(i=>({...i,grp:stakeGrp(i),name:stakeName(i.k)})); }
+  catch(e){ return []; } finally { DB=kDB; state.from=kf; state.to=kt; state.odate=ko; } }
+function iaStake(){
+  const F=state.iafrom||allMonths()[0], T=state.iato||allMonths().at(-1);
+  const months=allMonths().filter(m=>m>=F&&m<=T); if(!months.length) return iaBanner()+`<div class="panel empty">Pick a period.</div>`;
+  const per=months.map(m=>({m,items:stakeAt(m)}));
+  const names=[]; per.forEach(p=>p.items.forEach(i=>{ if(!names.find(n=>n.name===i.name)) names.push({name:i.name,grp:i.grp,page:i.page,src:i.src}); }));
+  const GRS=["Sales & Marketing","Operation"];
+  names.sort((a,b)=>GRS.indexOf(a.grp)-GRS.indexOf(b.grp));
+  const val=(m,name)=>{ const p=per.find(x=>x.m===m), it=p&&p.items.find(i=>i.name===name); return it?it.v:0; };
+  const lineTot=name=>months.reduce((s,m)=>s+val(m,name),0), grpTot=(g,m)=>names.filter(n=>n.grp===g).reduce((s,n)=>s+(m?val(m,n.name):lineTot(n.name)),0);
+  const tot=GRS.reduce((s,g)=>s+grpTot(g),0), one=months.length===1;
+  const totals=`<div class="kcards k3">
+    <div class="panel kcard" style="border-left:4px solid var(--red)"><span>Total value at stake</span><b class="num" style="color:var(--red)">${fmtC(tot)}</b><small>${one?monthLabel(months[0]):`${monthLabel(months[0])} – ${monthLabel(months.at(-1))} · ${months.length} months`}</small></div>
+    ${GRS.map(g=>`<div class="panel kcard"><span>${g}</span><b class="num">${fmtC(grpTot(g))}</b><small>${tot?Math.round(grpTot(g)/tot*100):0}% of the total</small></div>`).join("")}</div>`;
+  // the gap of every line, month by month (click a month to see only it)
+  const mx=Math.max(1,...months.flatMap(m=>names.map(n=>val(m,n.name))));
+  const cell=v=>v?`<td class="num"><b class="ach">${fmtC(v)}</b><div class="mbar"><i style="width:${v/mx*100}%"></i></div></td>`:'<td class="num"><span class="of">·</span></td>';
+  const table=`<div class="panel tbl-wrap keep"><table class="grid"><thead><tr><th>Line</th>${months.map(m=>`<th class="click" data-stm="${m}" title="Show only ${monthLabel(m)}">${mShort(m)}${iaPartial(m)?"*":""}</th>`).join("")}${one?"":"<th>Total</th>"}</tr></thead><tbody>
+    ${GRS.map(g=>{ const ns=names.filter(n=>n.grp===g); if(!ns.length) return "";
+      return `<tr class="grp"><td class="l" colspan="${months.length+(one?1:2)}"><b>${g}</b></td></tr>`+ns.map(n=>`<tr><td class="l name">${esc(n.name)}</td>${months.map(m=>cell(val(m,n.name))).join("")}${one?"":`<td class="num"><b>${fmtC(lineTot(n.name))}</b></td>`}</tr>`).join("")
+        +`<tr class="sub"><td class="l">${g} total</td>${months.map(m=>`<td class="num"><b>${fmtC(grpTot(g,m))}</b></td>`).join("")}${one?"":`<td class="num"><b>${fmtC(grpTot(g))}</b></td>`}</tr>`; }).join("")}
+    <tr class="total"><td class="l">Total value at stake</td>${months.map(m=>`<td class="num">${fmtC(GRS.reduce((s,g)=>s+grpTot(g,m),0))}</td>`).join("")}${one?"":`<td class="num">${fmtC(tot)}</td>`}</tr></tbody></table></div>`;
+  const ch=chart({labels:months.map(m=>mShort(m)+(iaPartial(m)?"*":"")),h:260,bars:GRS.map((g,k)=>({name:g,color:k?"var(--navy)":"var(--gold)",values:months.map(m=>grpTot(g,m))})),barLabels:months.map(m=>fmtC(GRS.reduce((s,g)=>s+grpTot(g,m),0))),fmtY:fmtC});
+  // detail cards: the last month of the period, with the period total of each line
+  const lm=months.at(-1), last=per.at(-1).items; let n=0;
+  const card=nm=>{ const it=last.find(i=>i.name===nm.name), v=lineTot(nm.name);
+    return `<div class="panel skc click" data-page="${nm.page}"><div class="skh"><span class="skn">${++n}</span><div><b>${esc(nm.name)}</b><small>${nm.src}</small></div><b class="skv num">${fmtC(v)}</b></div>
+      ${one?"":`<p class="of">${months.map(m=>`${mShort(m)} ${fmtC(val(m,nm.name))}`).join(" · ")}</p>`}${it?`<p>${it.how}</p>${it.extra?`<p class="of">${it.extra}</p>`:""}`:`<p class="of">No gap in ${monthLabel(lm)}.</p>`}</div>`; };
+  return iaBanner()+`<div class="sec"><h2>Where the money is · ${one?monthLabel(months[0]):`${monthLabel(months[0])} – ${monthLabel(months.at(-1))}`}</h2><p>Pick the months with From / To</p></div>${totals}
+    ${GRS.map(g=>{ const ns=names.filter(x=>x.grp===g); return ns.length?`<div class="sec"><h2>${g}</h2><p>${fmtC(grpTot(g))}${one?"":" in the period · details of "+monthLabel(lm)}</p></div><div class="stake">${ns.map(card).join("")}</div>`:""; }).join("")}`;
 }
 
 /* ---------- Operation · monthly KPIs, ER / LOS / OPD reviews ---------- */
@@ -4393,6 +4434,7 @@ document.addEventListener("click", e=>{
   const pdf = e.target.closest("[data-pdf]");
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
+  const stm = e.target.closest("[data-stm]"); if (stm){ state.iafrom=state.iato=stm.dataset.stm; renderChrome(); render(); return; }
   const ltk = e.target.closest("[data-ltk]"); if (ltk){ state.ltk=ltk.dataset.ltk; render(); return; }
   const ldd = e.target.closest("[data-ldd]"); if (ldd){ state.ldd=ldd.dataset.ldd; render(); renderChrome(); return; }
   const svk = e.target.closest("[data-svk]"); if (svk){ state.svk=svk.dataset.svk; render(); return; }
