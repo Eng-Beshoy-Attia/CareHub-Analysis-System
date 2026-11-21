@@ -452,6 +452,8 @@ table.grid tr.grp td{background:#F6F8FB;color:var(--navy);font-size:12.5px;lette
 table.grid tr.sub td{background:#FBFCFD;font-size:12.5px}
 th.click{cursor:pointer;text-decoration:underline dotted}
 
+.drepbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:-4px 0 12px}.drepbar span{color:var(--muted);font-size:13px;margin-right:4px}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -1148,6 +1150,11 @@ function _renderChrome(){
   let f, sub;
   if (state.page.startsWith("ia")){
     const hm=iaAllMonths();
+    if (state.page==="ia_stake"){ const sm=hm.slice().reverse(); if(!sm.includes(state.iastm)) state.iastm=sm[0];
+      f = `<label>Month<select data-f="iastm">${sm.map(m=>`<option value="${m}" ${m===state.iastm?"selected":""}>${monthLabel(m)}${iaPartial(m)?" (so far)":""}</option>`).join("")}</select></label>` + sel("Branch","iareg",["All",...cityBUs()]);
+      sub = `Informative analysis · ${monthLabel(state.iastm)}${state.iareg!=="All"?" · "+state.iareg:""}`;
+      $("#bar").innerHTML = `<h1>${page.label}<small>${sub}</small></h1><div class="filters">${f}<button class="fdone" data-m="fclose">Show results</button></div>`;
+      renderMobile(page, sub.replace("Informative analysis · ","")); return; }
     f = `<label>From<select data-f="iafrom">${opts(hm,state.iafrom)}</select></label><label>To<select data-f="iato">${opts(hm,state.iato)}</select></label>`;
     if (state.page==="ia"){ const mm=iaMonths().slice(1).reverse(); f += `<label>Explain<select data-f="iam">${mm.map(m=>`<option value="${m}" ${m===(state.iam||mm[0])?"selected":""}>${monthLabel(m)}${iaPartial(m)?" (so far)":""} vs ${mShort(iaPrev(m)||prevMonth(m))}</option>`).join("")}</select></label>`; }
     f += sel("Branch","iareg",["All","Alex","New Cairo","Mohandessen"]);
@@ -2569,15 +2576,15 @@ function stakeItemsAll(){
 /* the data as it stood at the end of month m (everything after it hidden), so every line can be worked out month by month */
 function dbUpTo(m){ const o={}; for (const [k,v] of Object.entries(DB)){ if(!Array.isArray(v)||!v.length||typeof v[0]!=="object"){ o[k]=v; continue; }
     const r0=v[0]; o[k]= ("Month" in r0) ? v.filter(r=>!r.Month||r.Month<=m) : ("Date" in r0) ? v.filter(r=>!r.Date||cycleKey(parseDate(r.Date))<=m) : v; } return o; }
-const STAKE_DROP=["Leads lost at the hotline or cancelled","Empty beds below the occupancy target","Cases below their MTD target","Ambulatory patients not converted to INP"];
+const STAKE_DROP=["Commercial revenue gap to MTD target","Leads lost at the hotline or cancelled","Empty beds below the occupancy target","Cases below their MTD target","Ambulatory patients not converted to INP"];
 const stakeGrp = i => (i.src==="Commercial"||/^Commercial/.test(i.k)) ? "Sales & Marketing" : "Operation";
 const stakeName = k => k.replace(/^Commercial:\s*/,"").replace(/^Commercial revenue gap to MTD target$/,"Revenue gap to the target (no patient-flow targets this month)");
 function stakeAt(m){ const kDB=DB, kf=state.from, kt=state.to, ko=state.odate; DB=dbUpTo(m); state.from=state.to=m;
   try{ return stakeItemsAll().filter(i=>!STAKE_DROP.includes(i.k)&&i.v>0).map(i=>({...i,grp:stakeGrp(i),name:stakeName(i.k)})); }
   catch(e){ return []; } finally { DB=kDB; state.from=kf; state.to=kt; state.odate=ko; } }
 function iaStake(){
-  const F=state.iafrom||allMonths()[0], T=state.iato||allMonths().at(-1);
-  const months=allMonths().filter(m=>m>=F&&m<=T); if(!months.length) return iaBanner()+`<div class="panel empty">Pick a period.</div>`;
+  const sm=iaAllMonths(); if(!sm.includes(state.iastm)) state.iastm=sm.at(-1);
+  const months=[state.iastm]; if(!state.iastm) return iaBanner()+`<div class="panel empty">Pick a month.</div>`;
   const per=months.map(m=>({m,items:stakeAt(m)}));
   const names=[]; per.forEach(p=>p.items.forEach(i=>{ if(!names.find(n=>n.name===i.name)) names.push({name:i.name,grp:i.grp,page:i.page,src:i.src}); }));
   const GRS=["Sales & Marketing","Operation"];
@@ -2602,7 +2609,7 @@ function iaStake(){
   const card=nm=>{ const it=last.find(i=>i.name===nm.name), v=lineTot(nm.name);
     return `<div class="panel skc click" data-page="${nm.page}"><div class="skh"><span class="skn">${++n}</span><div><b>${esc(nm.name)}</b><small>${nm.src}</small></div><b class="skv num">${fmtC(v)}</b></div>
       ${one?"":`<p class="of">${months.map(m=>`${mShort(m)} ${fmtC(val(m,nm.name))}`).join(" · ")}</p>`}${it?`<p>${it.how}</p>${it.extra?`<p class="of">${it.extra}</p>`:""}`:`<p class="of">No gap in ${monthLabel(lm)}.</p>`}</div>`; };
-  return iaBanner()+`<div class="sec"><h2>Where the money is · ${one?monthLabel(months[0]):`${monthLabel(months[0])} – ${monthLabel(months.at(-1))}`}</h2><p>Pick the months with From / To</p></div>${totals}
+  return iaBanner()+`<div class="sec"><h2>Where the money is · ${one?monthLabel(months[0]):`${monthLabel(months[0])} – ${monthLabel(months.at(-1))}`}</h2><p>Pick the month at the top</p></div>${totals}
     ${GRS.map(g=>{ const ns=names.filter(x=>x.grp===g); return ns.length?`<div class="sec"><h2>${g}</h2><p>${fmtC(grpTot(g))}${one?"":" in the period · details of "+monthLabel(lm)}</p></div><div class="stake">${ns.map(card).join("")}</div>`:""; }).join("")}`;
 }
 
@@ -4017,6 +4024,189 @@ function leadsDay(){
     <div class="sec"><h2>Every lead of the day</h2><p>${fmt(L.length)} leads</p></div>${tbl}`;
 }
 
+/* ============================================================
+   COMMERCIAL · DAILY REPORT (PDF / Excel) built from the Overview
+   group → Cairo / Alex → branches → each sales channel (by city, its history from Trends,
+   expected closing, and for Business Development the salespeople and accounts holding it back)
+   ============================================================ */
+const DREP_BD = ["Medical Sales","Corporate","Community","Family Medicine"];
+function drepData(){
+  const m=state.to, c=cycle(m), all=(DB.BU_Channel||[]).filter(r=>r.Month===m);
+  if (!all.length) return null;
+  const keepF=state.from; state.from=m;           // the report is always one month
+  try{
+  const fr=all[0].__frac!=null?all[0].__frac:c.frac, running=fr<1, el=Math.round(fr*c.days);
+  const hm=histMonths().filter(x=>x<m), last3=hm.slice(-3);
+  const hist=(k,ch,rg)=>(DB.Hist_Channel||[]).filter(r=>(!ch||r.Channel===ch)&&(!rg||r.Region===rg));
+  const avg3=(k,ch,rg)=>last3.length?last3.map(x=>sum(hist(k,ch,rg).filter(r=>r.Month===x),k)).reduce((a,b)=>a+b,0)/last3.length:0;
+  const exp=(a,k,ch,rg)=>running?Math.round(fcBlend(a,fr,avg3(k,ch,rg))):a;
+  const RUN=running&&runningMonth()===m?runningRows("exp"):[];
+  const runSum=(k,ch,rg,isGroup)=>RUN.length&&(ch||rg||isGroup)?sum(RUN.filter(r=>(!ch||r.Channel===ch)&&(!rg||r.Region===rg)),k):null;
+  const met=(rs,ch,rg,isGroup)=>{ const g=buAgg(rs), rE=runSum("Revenue",ch,rg,isGroup), iE=runSum("INP_Volume",ch,rg,isGroup), eE=runSum("ER_Volume",ch,rg,isGroup);
+    return {rev:g.Rev_Actual,revM:g.Rev_Target,revF:g.Full_Rev_Target,revE:running?(rE??fcRevOf(rs)??g.Rev_Actual):g.Rev_Actual,
+      inp:g.INP_Vol_Actual,inpM:g.INP_Vol_Target,inpF:g.Full_INP_Vol_Target,inpE:iE??exp(g.INP_Vol_Actual,"INP_Volume",ch,rg),
+      er:g.ER_Actual,erM:g.ER_Target,erF:g.Full_ER_Target,erE:eE??exp(g.ER_Actual,"ER_Volume",ch,rg),
+      inpRev:g.INP_Rev_Actual,ambRev:g.AMB_Rev_Actual,icu:g.ICU_Actual}; };
+  const cities=["Cairo","Alex"].filter(x=>all.some(r=>areaOf(r.BU)===x));
+  const bus=BU_ORDER.filter(b=>all.some(r=>r.BU===b));
+  const chs=sortCh([...new Set(all.map(r=>r.Channel))]);
+  // history of the four Trends measures, with the running month as expected closing
+  const run=running&&runningMonth()===m?runningRows("exp"):[];
+  const H=[["Revenue","Revenue",true],["INP_Volume","INP admissions",false],["ER_Volume","ER requests",false],["AMB_Volume","Ambulatory cases",false]];
+  const histOf=ch=>H.map(([k,label,money])=>{ const vals=hm.map(x=>sum(hist(k,ch).filter(r=>r.Month===x),k));
+      const cur=run.length?sum(run.filter(r=>r.Channel===ch),k):(DB.Hist_Channel||[]).some(r=>r.Month===m)?sum(hist(k,ch).filter(r=>r.Month===m),k):null;
+      const series=cur!=null?[...vals,cur]:vals, t=trendOf(series), lastM=vals.at(-1), a3=vals.slice(-3).reduce((s,v)=>s+v,0)/(Math.min(3,vals.length)||1);
+      return {k,label,money,months:hm,vals,cur,vsLast:cur!=null&&lastM?(cur-lastM)/lastM:null,vs3:cur!=null&&a3?(cur-a3)/a3:null,verdict:t.verdict}; });
+  // Business Development: salespeople below their MTD target and the accounts holding them back
+  const prevM=[...new Set([...(DB.Accounts||[]).map(r=>r.Month),...(DB.Hist_Accounts||[]).map(r=>r.Month)])].sort().filter(x=>x<m).at(-1);
+  const lastRev=(acc,rg)=>{ const h=(DB.Hist_Accounts||[]).find(r=>r.Month===prevM&&r.Account===acc&&r.Region===rg); if(h) return h.Revenue||0;
+    const a=(DB.Accounts||[]).filter(r=>r.Month===prevM&&r.Account===acc&&r.Region===rg); return a.length?sum(a,"OPD_Val_Actual")+sum(a,"INP_Val_Actual"):null; };
+  const team=ch=>{
+    if (ch==="Family Medicine"){
+      const rs=(DB.FamilyMedicine||[]).filter(r=>r.Month===m); if(!rs.length) return null;
+      const by=new Map(); rs.forEach(r=>{ const k=(r.Region||"")+"|"+(r.Line||"Family medicine"); if(!by.has(k)) by.set(k,[]); by.get(k).push(r); });
+      return [...by.entries()].map(([k,L])=>{ const [Region,who]=k.split("|"), a=sum(L,"Value_Actual"), t=sum(L,"Value_Target"), f=sum(L,"Full_Value_Target")||t;
+        const accs=L.map(r=>({acc:r.Doctor,a:r.Value_Actual||0,t:r.Value_Target||0,last:null})).filter(x=>x.t>x.a).sort((x,y)=>(y.t-y.a)-(x.t-x.a)).slice(0,5);
+        return {who,Region,a,t,f,p:t?a/t:null,accN:L.length,active:L.filter(r=>r.Value_Actual>0).length,accs}; }).sort((x,y)=>(x.p??9)-(y.p??9));
+    }
+    const rs=(DB.Accounts||[]).filter(r=>r.Month===m&&r.Channel===ch); if(!rs.length) return null;
+    return repList(rs).map(r=>{ const accs=r.rows.map(x=>{ const a=(x.OPD_Val_Actual||0)+(x.INP_Val_Actual||0), t=(x.OPD_Val_Target||0)+(x.INP_Val_Target||0); return {acc:x.Account,a,t,last:lastRev(x.Account,x.Region)}; })
+        .filter(x=>x.t>x.a).sort((x,y)=>(y.t-y.a)-(x.t-x.a)).slice(0,5);
+      return {who:r.Salesman,Region:r.Region,a:r.actual,t:r.target,f:r.fullTarget,p:ratio(r.actual,r.target),accN:r.accounts,active:r.active,accs}; }).sort((x,y)=>(x.p??9)-(y.p??9));
+  };
+  return {m,c,fr,el,running,asof:setting("as_of_date"),prevM,
+    group:met(all,null,null,true), cities:cities.map(x=>({name:x,...met(all.filter(r=>areaOf(r.BU)===x),null,x)})), bus:bus.map(b=>({name:b,...met(all.filter(r=>r.BU===b))})),
+    channels:chs.map(ch=>{ const rs=all.filter(r=>r.Channel===ch);
+      return {ch,bd:DREP_BD.includes(ch),tot:met(rs,ch),cities:cities.map(x=>({name:x,...met(rs.filter(r=>areaOf(r.BU)===x),ch,x)})),hist:histOf(ch),team:DREP_BD.includes(ch)?team(ch):null}; })};
+  } finally { state.from=keepF; }
+}
+const drepPct=v=>v==null?"—":Math.round(v*100)+"%", drepSign=v=>v==null?"—":(v>=0?"▲ +":"▼ ")+Math.round(v*100)+"%";
+/* Daily report PDF: the Overview itself (same look), Cairo and Alex channel tables, then the Digital unit, the BD unit,
+   and every sales channel on its own pages with its four Trends charts and, for BD, the salespeople and accounts */
+function drepPdf(){
+  const m=state.to; if(!(DB.BU_Channel||[]).some(r=>r.Month===m)) return toast("No business-unit report for this month yet");
+  const w=window.open("","_blank");
+  if (!w){ toast("The browser blocked the report tab. Allow pop-ups for this page and try again."); return; }
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Preparing the report…</title><body style="font-family:Arial,sans-serif;color:#0B2C4F;display:flex;align-items:center;justify-content:center;height:90vh;font-size:18px">Preparing the daily report…</body>`);
+  showBusy(true,"Preparing the daily report…");
+  setTimeout(()=>{ try{ const doc=drepBuild(m); w.document.open(); w.document.write(doc); w.document.close(); }
+    catch(e){ console.error(e); w.document.body.innerHTML=`<div style="padding:40px;font-family:Arial,sans-serif"><h2 style="color:#C0392B">The report could not be built</h2><p>${esc(String(e&&e.message||e))}</p><p>Send this message to the dashboard admin.</p></div>`; }
+    finally{ showBusy(false); } },60);
+}
+function drepBuild(m){
+  const S=JSON.parse(JSON.stringify({city:state.city,unit:state.unit,from:state.from,to:state.to,bu:state.bu,channel:state.channel,region:state.region,hmetric:state.hmetric,hregion:state.hregion,hch:state.hch,hfrom:state.hfrom,hto:state.hto,hrun:state.hrun}));
+  const keepDB=DB, hm=histMonths();
+  const reb=()=>{ DB=tabsToDB(API_TABS||{}); };
+  const frag=h=>{ const d=document.createElement("div"); d.innerHTML=h; d.querySelectorAll("button,.drepbar,[data-go-ops-ch]").forEach(x=>x.remove()); return d; };
+  const secPair=(d,title)=>{ const s=[...d.querySelectorAll(".sec")].find(x=>(x.querySelector("h2")?.textContent||"").trim().startsWith(title)); if(!s) return null; return [s,s.nextElementSibling]; };
+  const outer=a=>a?a.filter(Boolean).map(x=>x.outerHTML).join(""):"";
+  const H4=[["Revenue","Revenue"],["INP_Volume","INP admissions"],["ER_Volume","ER requests"],["AMB_Volume","Ambulatory cases"]];
+  const history=label=>{ state.hregion="All"; state.hfrom=hm[0]; state.hto=hm.at(-1); state.hrun="exp";
+    return `<div class="rsub">History · ${esc(label)} · ${monthLabel(m)} shown as expected closing</div>`+H4.map(([k,lab])=>{ state.hmetric=k; const d=frag(hTrends());
+      const v=d.querySelector(".verdict"), c=d.querySelector(".panel.chartbox"), lg=d.querySelector(".sec .legend");
+      return `<div class="hblk"><div class="sec"><h2>${lab} by month · ${esc(label)}</h2>${lg?lg.outerHTML:""}</div>${v?v.outerHTML:""}${c?c.outerHTML:`<div class="panel empty">No history yet.</div>`}</div>`; }).join(""); };
+  const cityTable=(D,ttl)=>{ const r=(n,x)=>`<tr><td class="l name">${n}</td><td class="num"><b class="ach">${fmt(x.rev)}</b> <span class="of">/ ${fmt(x.revM)}</span><div class="tgt2">Target ${fmt(x.revF)}</div></td><td>${chip(ratio(x.rev,x.revM))}</td>
+      <td class="num"><b class="ach">${fmtC(x.revE)}</b> ${chip(ratio(x.revE,x.revF))}</td><td class="num">${fmtC(x.inpRev)}</td><td class="num">${fmtC(x.ambRev)}</td>
+      <td class="num"><b class="ach">${fmtV(x.inp)}</b> <span class="of">/ ${fmtV1(x.inpM)}</span> ${chip(ratio(x.inp,x.inpM))}<div class="tgt2">Target ${fmt(x.inpF)} · exp. ${fmt(x.inpE)}</div></td>
+      <td class="num"><b class="ach">${fmtV(x.icu)}</b></td><td class="num"><b class="ach">${fmtV(x.er)}</b> <span class="of">/ ${fmtV1(x.erM)}</span> ${chip(ratio(x.er,x.erM))}<div class="tgt2">Target ${fmt(x.erF)} · exp. ${fmt(x.erE)}</div></td></tr>`;
+    return `<div class="sec"><h2>${ttl}</h2></div><div class="panel tbl-wrap"><table><thead><tr><th></th><th>Revenue vs MTD target</th><th>Achieved</th><th>Expected closing revenue</th><th>INP revenue</th><th>Ambulatory revenue</th><th>INP admissions</th><th>ICU</th><th>ER</th></tr></thead><tbody>
+      ${r("<b>Total</b>",D.tot||D.group)}${(D.cities||[]).map(x=>r(x.name==="Cairo"?"Cairo <span class='of'>(New Cairo + Mohandessen)</span>":x.name,x)).join("")}</tbody></table></div>`; };
+  const teamTables=C=>{ if(!C.team||!C.team.length) return `<div class="panel empty">No ${C.ch==="Family Medicine"?"family-medicine lines":"salespeople"} entered for ${monthLabel(m)} yet.</div>`;
+    const prevM=drepPrev; let h=`<div class="sec"><h2>${C.ch==="Family Medicine"?"Family-medicine lines":"Salespeople"} · lowest achievement first</h2></div><div class="panel tbl-wrap"><table><thead><tr><th>Name</th><th>City</th><th>Achieved vs MTD target</th><th>Achieved</th><th>Month target</th><th>Active accounts</th><th>Status</th></tr></thead><tbody>
+      ${C.team.map(r=>`<tr><td class="l name">${esc(r.who)}</td><td>${esc(r.Region)}</td><td class="num"><b class="ach">${fmt(r.a)}</b> <span class="of">/ ${fmt(r.t)}</span>${bar(r.a,r.t)}</td><td>${chip(r.p)}</td><td class="num">${fmt(r.f)}</td><td class="num">${r.active} / ${r.accN}</td><td>${r.p!=null&&r.p<0.8?'<span class="chip red">Below target</span>':'<span class="chip green">On track</span>'}</td></tr>`).join("")}</tbody></table></div>`;
+    const low=C.team.filter(r=>r.p!=null&&r.p<0.8&&r.accs.length);
+    if (low.length) h+=`<div class="sec"><h2>Accounts holding them back</h2><p>Largest gap to the MTD target</p></div><div class="panel tbl-wrap"><table><thead><tr><th>Salesperson</th><th>Account</th><th>Achieved</th><th>MTD target</th><th>Gap</th><th>${prevM?mShort(prevM):"Last month"}</th><th>Note</th></tr></thead><tbody>
+      ${low.flatMap(r=>r.accs.map(a=>`<tr><td class="l name">${esc(r.who)}</td><td dir="auto">${esc(a.acc)}</td><td class="num">${fmt(a.a)}</td><td class="num">${fmt(a.t)}</td><td class="num"><b style="color:var(--red)">${fmt(a.t-a.a)}</b></td><td class="num">${a.last==null?"—":fmt(a.last)}</td><td>${a.a===0?(a.last?"No activity this month (had activity last month)":"No activity this month"):""}</td></tr>`)).join("")}</tbody></table></div>`;
+    return h; };
+  let drepPrev=null, body="";
+  try{
+    Object.assign(state,{from:m,to:m,bu:"All",channel:"All",region:"All",city:"All",unit:"All",hch:"All"}); reb();
+    // 1 · the Overview
+    const ov=frag(overview()); const D0=drepData(); drepPrev=D0&&D0.prevM;
+    const ch=secPair(ov,"Sales channels"); let chHtml="";
+    for (const city of ["Cairo","Alex"]){ state.city=city; reb(); const d=frag(overview()), p=secPair(d,"Sales channels");
+      if (p){ p[0].querySelector("h2").innerHTML=`Sales channels · ${city==="Cairo"?"Cairo (New Cairo + Mohandessen)":"Alex"}`; chHtml+=outer(p); } }
+    state.city="All"; reb();
+    if (ch){ const tmp=document.createElement("div"); tmp.innerHTML=chHtml; ch[0].replaceWith(...tmp.childNodes); ch[1]&&ch[1].remove(); }
+    ov.querySelectorAll(".sec p").forEach(p=>{ if(/click/i.test(p.textContent)) p.remove(); });
+    body+=`<div class="rpart">${ov.innerHTML}</div>`;
+    // 2 · the two units
+    for (const [u,label] of [["Digital","Digital unit"],["BD","Business Development unit"]]){
+      state.unit=u; reb(); const d=frag(overview()), D=drepData();
+      const hero=d.querySelector(".hero"), ex=secPair(d,"Expected closing figures"), kp=ex&&ex[1]&&ex[1].nextElementSibling;
+      state.hch="All";
+      body+=`<div class="pbreak"><div class="rtitle">${label}<small>${u==="Digital"?"Digital-Pure":"Medical Sales · Corporate · Community · Family Medicine"} · ${monthLabel(m)}</small></div>
+        ${hero?hero.outerHTML.replace(/CareHub group revenue/,label+" revenue"):""}${outer(ex)}${kp&&!kp.classList.contains("sec")?kp.outerHTML:""}${D?cityTable(D,`${label} · Cairo and Alex`):""}${history(label)}</div>`;
+    }
+    state.unit="All"; reb();
+    // 3 · every sales channel on its own pages
+    const D=drepData(); const order=[...D.channels.filter(c=>c.ch==="Digital-Pure"),...DREP_BD.map(b=>D.channels.find(c=>c.ch===b)).filter(Boolean),...D.channels.filter(c=>c.ch!=="Digital-Pure"&&!DREP_BD.includes(c.ch))];
+    for (const C of order){
+      state.hch=C.ch;
+      body+=`<div class="pbreak"><div class="rtitle">${esc(C.ch)}<small>${C.ch==="Digital-Pure"?"Digital unit":C.bd?"Business Development unit":"Other channel"} · ${monthLabel(m)}</small></div>
+        ${cityTable({tot:C.tot,cities:C.cities},`${esc(C.ch)} · Cairo and Alex`)}${history(C.ch)}${C.bd?teamTables(C):""}</div>`;
+    }
+  } finally { DB=keepDB; Object.assign(state,S); }
+  const c=cycle(m), fr=(DB.BU_Channel||[]).find(r=>r.Month===m)?.__frac??c.frac;
+  const sub=`${monthLabel(m)} · ${fr<1?`day ${Math.round(fr*c.days)} of ${c.days}`:"closed month"}${setting("as_of_date")?` · data to ${setting("as_of_date")}`:""}`;
+  // the printed page is narrower than a desktop screen: switch the small-screen layouts off so the report keeps the desktop look
+  const styles=([...document.querySelectorAll("style")].map(s=>s.outerHTML).join("")).replace(/@media\s*\([^{]*max-width[^{]*\{/g,"@media (max-width:1px){")+[...document.querySelectorAll('link[rel="stylesheet"]')].map(l=>l.outerHTML).join("");
+  const extra=`<style>@page{size:A4 portrait;margin:16mm 9mm 13mm 9mm}
+    html,body{background:#fff!important;margin:0!important;padding:0!important;display:block!important;overflow:visible!important;height:auto!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #view.rptwrap{width:1180px;max-width:none!important;margin:0 auto!important;padding:24px 0 60px!important;box-sizing:border-box}
+    .rbar{position:sticky;top:0;z-index:50;background:#0B2C4F;color:#fff;display:flex;align-items:center;justify-content:center;gap:14px;padding:10px;font:600 14px Arial,sans-serif}
+    .rbar button{display:inline-block!important;font:600 14px Arial,sans-serif;background:#E9A45F;color:#0B2C4F;border:0;border-radius:8px;padding:9px 18px;cursor:pointer}
+    @media print{ .rbar{display:none!important} #view.rptwrap{width:320mm;zoom:.6;padding:0!important;margin:0!important} }
+    #view .fcards{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+    #view .kpis{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+    #view .bus{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+    #view .hstats{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+    #view .panel,#view .tbl-wrap,#view .chartbox{width:100%;margin-left:0;margin-right:0}
+    #view table{width:100%!important;margin:0 auto}
+    #view .sec{margin-top:22px}
+    .rhead{background:#0B2C4F;color:#fff;border-radius:14px;padding:18px 24px;display:flex;align-items:center;gap:20px;margin-bottom:18px}.rhead img{height:62px}.rhead h1{margin:0;font-size:28px;color:#fff}.rhead p{margin:4px 0 0;color:#C9D6E3;font-size:15px}.rhead .d{margin-left:auto;text-align:right;color:#C9D6E3;font-size:13px}
+    .pbreak{break-before:page;page-break-before:always}
+    .rtitle{background:#F1F4F8;border-left:8px solid var(--gold);border-radius:12px;padding:14px 20px;font-size:30px;font-weight:700;color:var(--navy);margin:0 0 16px}.rtitle small{display:block;font-size:15px;font-weight:500;color:var(--muted);margin-top:4px}
+    .rsub{font-size:18px;font-weight:700;color:var(--navy);margin:22px 0 4px;padding-top:8px;border-top:2px solid var(--line)}.rsub{break-after:avoid;page-break-after:avoid}
+    .panel,.hero,.kcard,.verdict,.chartbox,.bu,.fcc,.hblk,tr,.sec{break-inside:avoid;page-break-inside:avoid}.sec{break-after:avoid}
+    .hblk{margin-bottom:10px}
+    #view td,#view th{text-align:center!important;vertical-align:middle}
+    .tbl-wrap{overflow:visible!important}table{width:100%}
+    #view button,#view .btn,.drepbar,[data-go-ops-ch]{display:none!important}
+    @media screen{ html,body{background:#E9EDF2!important} #view.rptwrap{background:#fff;padding:24px 28px 60px!important;margin:18px auto!important;box-shadow:0 4px 24px rgba(0,0,0,.08);border-radius:10px} }</style>`;
+  const doc=`<!doctype html><html><head><meta charset="utf-8"><title>CareHub · Commercial daily report · ${esc(monthLabel(m))}</title>${styles}${extra}</head><body>
+    <div class="rbar">Commercial daily report · ${esc(sub)} <button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+    <div id="view" class="rptwrap"><div class="rhead"><img src="data:image/png;base64,${LOGO}" alt="CareHub"><div><h1>Commercial daily report</h1><p>${sub}</p></div><div class="d">Generated ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}<br>Source: Analysis Database</div></div>
+    ${body}</div><script>setTimeout(()=>window.print(),1200);<\/script></body></html>`;
+  return doc;
+}
+
+function loadXLSX(){ return window.XLSX?Promise.resolve(window.XLSX):new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; s.onload=()=>res(window.XLSX); s.onerror=()=>rej(new Error("The Excel library could not load. Check the internet connection.")); document.head.appendChild(s); }); }
+async function drepXlsx(){
+  const D=drepData(); if(!D) return toast("No business-unit report for this month yet");
+  let X; try{ X=await loadXLSX(); }catch(e){ return toast(e.message); }
+  const r2=v=>v==null?null:Math.round(v*1000)/1000;
+  const H=["Level","Name","Revenue","MTD target","Achieved %","Month target","Expected closing","Expected vs target %","INP admissions","INP MTD target","INP month target","Expected INP","ER requests","ER MTD target","ER month target","Expected ER","INP revenue","Ambulatory revenue","ICU"];
+  const line=(lvl,n,x)=>[lvl,n,x.rev,Math.round(x.revM),r2(ratio(x.rev,x.revM)),x.revF,Math.round(x.revE),r2(ratio(x.revE,x.revF)),x.inp,r2(x.inpM),x.inpF,x.inpE,x.er,r2(x.erM),x.erF,x.erE,x.inpRev,x.ambRev,x.icu];
+  const info=[["CareHub · Commercial daily report"],["Month",monthLabel(D.m)],["Data to",D.asof||""],["Cycle progress",r2(D.fr)],["Generated",new Date().toLocaleString("en-GB")],[]];
+  const sum1=[...info,H,line("Group","All",D.group),...D.cities.map(x=>line("City",x.name,x)),...D.bus.map(x=>line("Branch",x.name,x))];
+  const chRows=[H];
+  D.channels.forEach(C=>{ chRows.push(line(C.bd?"Channel (BD)":"Channel",C.ch,C.tot)); C.cities.forEach(x=>chRows.push(line("  City",`${C.ch} · ${x.name}`,x))); });
+  const hRows=[["Channel","Measure",...(D.channels[0]?.hist[0].months||[]).map(monthLabel),D.running?monthLabel(D.m)+" expected closing":monthLabel(D.m),"vs last month %","vs 3-month average %","Trend"]];
+  D.channels.forEach(C=>C.hist.forEach(h=>hRows.push([C.ch,h.label,...h.vals.map(v=>Math.round(v)),h.cur==null?null:Math.round(h.cur),r2(h.vsLast),r2(h.vs3),h.verdict])));
+  const tRows=[["Channel","Name","City","Achieved","MTD target","Achieved %","Month target","Active accounts","Accounts","Status"]];
+  const aRows=[["Channel","Salesperson","City","Account","Achieved","MTD target","Gap",D.prevM?monthLabel(D.prevM):"Last month","Note"]];
+  D.channels.filter(C=>C.team).forEach(C=>C.team.forEach(r=>{ tRows.push([C.ch,r.who,r.Region,r.a,Math.round(r.t),r2(r.p),r.f,r.active,r.accN,r.p!=null&&r.p<0.8?"Below target":"On track"]);
+    if (r.p!=null&&r.p<0.8) r.accs.forEach(a=>aRows.push([C.ch,r.who,r.Region,a.acc,a.a,Math.round(a.t),Math.round(a.t-a.a),a.last,a.a===0?(a.last?"No activity this month (had activity last month)":"No activity this month"):""])); }));
+  const wb=X.utils.book_new(), add=(rows,name,widths,hr=0)=>{ const ws=X.utils.aoa_to_sheet(rows); ws["!cols"]=widths.map(w=>({wch:w}));
+    const head=rows[hr]||[];   // number formats: % columns as percentages, the rest with thousands separators
+    for (let r=hr+1;r<rows.length;r++) (rows[r]||[]).forEach((v,cI)=>{ if(typeof v!=="number") return; const ref=X.utils.encode_cell({r,c:cI}); if(!ws[ref]) return; ws[ref].z=/%/.test(String(head[cI]||""))?"0%":(Number.isInteger(v)?"#,##0":"#,##0.0"); });
+    ws["!freeze"]={xSplit:2,ySplit:hr+1}; X.utils.book_append_sheet(wb,ws,name); };
+  add(sum1,"Summary",[14,16,...Array(17).fill(13)],6); add(chRows,"Channels",[14,30,...Array(17).fill(13)]); add(hRows,"History",[16,18,...Array(14).fill(12)]);
+  add(tRows,"BD salespeople",[16,24,10,12,12,11,12,10,9,13]); add(aRows,"BD accounts",[16,22,10,34,12,12,12,12,40]);
+  X.writeFile(wb,`CareHub_Commercial_daily_${D.asof||D.m}.xlsx`);
+}
+
 /* ---------- Overview ---------- */
 function buAgg(rows){
   const k = ["INP_Rev_Target","INP_Rev_Actual","AMB_Rev_Target","AMB_Rev_Actual","INP_Vol_Target","INP_Vol_Actual","ICU_Target","ICU_Actual","ER_Target","ER_Actual"];
@@ -4102,7 +4292,8 @@ function overview(){
    <tbody>${chRows.map(x=>tr(x)).join("")}${tr({ch:"Total",...g},"total")}</tbody></table></div>`;
   const FS = state.from===state.to && state.bu==="All" ? flowStatus(state.to, "All") : null;   // company-level targets
   const flow = FS ? `<div class="sec"><h2>Patients brought by each channel vs target</h2><p>ER, ambulatory and assessment visits · ${monthLabel(FS.month)} to ${dShort(parseDate(FS.asof))}</p></div>${flowTable(FS)}` : "";
-  return covNote(DB.BU_Channel||[]) + inpOnlyNote(rows) + hero + fcCommercial(rows) + kpis + bus + channels + chOverviewBlock() + flow;
+  const drepBar = state.from===state.to ? `<div class="drepbar"><span>Daily report · ${monthLabel(state.to)}</span><button class="btn" data-drep="pdf">⬇ PDF</button><button class="btn" data-drep="xlsx">⬇ Excel</button></div>` : "";
+  return drepBar + covNote(DB.BU_Channel||[]) + inpOnlyNote(rows) + hero + fcCommercial(rows) + kpis + bus + channels + chOverviewBlock() + flow;
 }
 
 /* ---------- Sales team ---------- */
@@ -4435,6 +4626,7 @@ document.addEventListener("click", e=>{
   if (pdf){ e.preventDefault(); const a=pdf.dataset.pdf; if (a==="salesTeam") salesPdfTeam(); else if (a.startsWith("salesOne:")) salesPdfOne(a.slice(9)); else if (PDF_ACTIONS[a]) PDF_ACTIONS[a](); return; }
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
   const stm = e.target.closest("[data-stm]"); if (stm){ state.iafrom=state.iato=stm.dataset.stm; renderChrome(); render(); return; }
+  const drep = e.target.closest("[data-drep]"); if (drep){ drep.dataset.drep==="pdf" ? drepPdf() : drepXlsx(); return; }
   const ltk = e.target.closest("[data-ltk]"); if (ltk){ state.ltk=ltk.dataset.ltk; render(); return; }
   const ldd = e.target.closest("[data-ldd]"); if (ldd){ state.ldd=ldd.dataset.ldd; render(); renderChrome(); return; }
   const svk = e.target.closest("[data-svk]"); if (svk){ state.svk=svk.dataset.svk; render(); return; }
