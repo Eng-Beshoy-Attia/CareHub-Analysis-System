@@ -454,6 +454,12 @@ th.click{cursor:pointer;text-decoration:underline dotted}
 
 .drepbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:-4px 0 12px}.drepbar span{color:var(--muted);font-size:13px;margin-right:4px}
 
+.bu.city .cgrid{display:block}.bu.city .cgrid dl{display:grid;grid-template-columns:auto 1fr auto 1fr;column-gap:14px}.bu.city .csplit{margin-top:12px;border-top:1px dashed var(--line);padding-top:8px}
+.bu.city .csplit{overflow-x:auto}.bu.city .csplit table{width:100%;font-size:12.5px;border-collapse:collapse}.bu.city .csplit th{font-size:11px;color:var(--muted);text-align:left;padding:4px 5px;white-space:nowrap}.bu.city .csplit td{padding:6px 5px;white-space:nowrap}
+.bu.city .csplit td .bar{min-width:90px}
+.bu.city .cst{font-size:12px;font-weight:600;color:var(--navy);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 4px}
+@media (max-width:900px){.bu.city{grid-column:auto!important}.bu.city .cgrid{grid-template-columns:1fr}}
+
 /* leads */
 .insights{padding:16px 20px;margin-bottom:14px;border-left:4px solid var(--gold)}
 .insights h3{margin:0 0 8px;font-size:14px;font-weight:600}
@@ -1888,7 +1894,7 @@ function hFM(){
    ============================================================ */
 const OCC_TABS = {Occ_Capacity:["BU","Level","Capacity"], Occ_Targets:["Month","BU","BD_Capacity"], Occ_Daily:["Date","BU","ICU"],
   Occ_Patients:["BU","Level","Patient"], Occ_INP:["Month","BU","Channel","INP_Target"], Occ_Conversion:["Date","BU","Channel","ER_Cases"]};
-const OCC_TEXT = new Set(["BU","Level","Patient","Consultant","Case_Manager","Nurse_Team_Leader","Smart_Pricing","Admission_Date","Sales_Channel","Account","Channel","Month","Date"]);
+const OCC_TEXT = new Set(["BU","Level","Patient","Consultant","Case_Manager","Nurse_Team_Leader","Smart_Pricing","Admission_Date","Sales_Channel","Account","Channel","Month","Date","Diagnosis"]);
 const LEVELS = [["ICU General","ICU","ICU"],["IMCU General","IMCU","IMCU"],["Ward General","Ward","Ward"]];
 const LV_COLOR = {"ICU General":"var(--navy)","IMCU General":"#7FA6CF","Ward General":"var(--gold)","Special Nurse":"#3E8E7E"};
 const isoDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -2012,7 +2018,8 @@ function occPatients(){
   let P=(DB.Occ_Patients||[]).filter(p=>occBU(p) && (state.olv==="All"||p.Level===state.olv) && (state.och==="All"||p.Sales_Channel===state.och));
   if (!(DB.Occ_Patients||[]).length) return occBanner()+occEmpty();
   const all=P;
-  const q=state.oq.trim().toLowerCase(); if(q) P=P.filter(p=>(p.Patient+" "+p.Consultant+" "+p.Case_Manager+" "+p.Nurse_Team_Leader+" "+p.Account).toLowerCase().includes(q));
+  if (state.oqDx) P=P.filter(p=>dxConditions(p.Diagnosis).includes(state.oqDx));
+  const q=state.oq.trim().toLowerCase(); if(q) P=P.filter(p=>(p.Patient+" "+p.Consultant+" "+p.Case_Manager+" "+p.Nurse_Team_Leader+" "+p.Account+" "+(p.Diagnosis||"")).toLowerCase().includes(q));
   const lv=["ICU General","IMCU General","Ward General","Special Nurse"];
   const los=(DB.Occ_Targets||[])[0]?.LOS_Target||12;
   const withDays=all.map(daysIn).filter(d=>d!=null), longStay=all.filter(p=>{const d=daysIn(p); return d!=null && d>los && p.Level!=="Special Nurse";}).length;
@@ -2028,17 +2035,18 @@ function occPatients(){
     return `<div class="panel reasons"><h3>${title}<small>${rows.length} patients</small></h3>${m.map(x=>`<div class="rs" style="cursor:default"><span class="rl">${esc(x.k)}</span><span class="rb"><i style="width:${x.n/mx*100}%"></i></span><span class="num rn">${x.n} <span class="of">${share(x.n,rows.length)}</span></span></div>`).join("")}</div>`; };
   const hosp=all.filter(p=>p.Level!=="Special Nurse"), spn=all.filter(p=>p.Level==="Special Nurse");
   P=[...P].sort((a,b)=>(daysIn(b)??-1)-(daysIn(a)??-1));
-  const roster=`<div class="sec" id="roster"><h2>Patients in care</h2><p>${P.length} shown${withDays.length?` · ${longStay} stayed longer than the ${los}-day LOS target (excl. special nurse)`:""}</p></div>
-    <div class="listbar"><input class="lsearch" data-f="oq" type="search" placeholder="Search patient, doctor, nurse, account" value="${esc(state.oq)}"></div>
-    <div class="panel tbl-wrap"><table class="leads"><thead><tr><th>Patient</th><th>BU</th><th>Care level</th><th>Consultant</th><th>Case manager</th><th>Nurse team leader</th><th>Pricing</th><th>Admitted</th><th>Days in care</th><th>Sales channel</th></tr></thead><tbody>
+  const roster=`<div class="sec" id="roster"><h2>Patients in care${state.oqDx?` · ${esc(state.oqDx)} <button class="btn pdfb" data-dxclear>✕ show all</button>`:""}</h2><p>${P.length} shown${withDays.length?` · ${longStay} stayed longer than the ${los}-day LOS target (excl. special nurse)`:""}</p></div>
+    <div class="listbar"><input class="lsearch" data-f="oq" type="search" placeholder="Search patient, doctor, nurse, account, diagnosis" value="${esc(state.oq)}"></div>
+    <div class="panel tbl-wrap"><table class="leads"><thead><tr><th>Patient</th><th>BU</th><th>Care level</th><th>Diagnosis</th><th>Consultant</th><th>Case manager</th><th>Nurse team leader</th><th>Pricing</th><th>Admitted</th><th>Days in care</th><th>Sales channel</th></tr></thead><tbody>
     ${P.map(p=>{const d=daysIn(p); return `<tr><td class="l name" dir="auto">${esc(p.Patient)}</td><td class="l">${esc(p.BU)}</td><td class="l"><span class="ost" style="--c:${LV_COLOR[p.Level]||"#999"}">${esc(p.Level.replace(" General",""))}</span></td>
+      <td class="l" dir="auto" style="white-space:normal;min-width:180px;max-width:280px">${p.Diagnosis?esc(p.Diagnosis):'<span class="of">—</span>'}</td>
       <td class="l" dir="auto">${esc(p.Consultant||"—")}</td><td class="l" dir="auto">${esc(p.Case_Manager||"—")}</td><td class="l" dir="auto">${esc(p.Nurse_Team_Leader||"—")}</td><td class="l">${esc(p.Smart_Pricing||"—")}</td>
       <td class="l num">${p.Admission_Date?dShort(parseDate(p.Admission_Date))+" "+parseDate(p.Admission_Date).getFullYear():"—"}</td>
       <td class="num">${d==null?'<span class="of">—</span>':`<b class="ach">${d}</b>${d>los&&p.Level!=="Special Nurse"?' <span class="chip red">long</span>':""}`}</td>
       <td class="l">${esc(p.Sales_Channel)}${p.Account?`<span class="tag" dir="auto">${esc(p.Account)}</span>`:""}</td></tr>`;}).join("")}</tbody></table></div>`;
   return occBanner() + summary + `<div class="sec"><h2>Care teams</h2><p>Patients per person and care level</p></div><div class="three">${cross("Consultant","Consultant")}${cross("Case_Manager","Case manager")}${cross("Nurse_Team_Leader","Nurse team leader")}</div>
     <div class="sec"><h2>Mix · hospital beds</h2><p>ICU, IMCU and ward · ${hosp.length} patients</p></div><div class="two">${dist("Sales_Channel","Sales channel",hosp)}${dist("Smart_Pricing","Smart pricing",hosp)}</div>
-    <div class="sec"><h2>Mix · special nurse</h2><p>${spn.length} patients</p></div><div class="two">${dist("Sales_Channel","Sales channel",spn)}${dist("Smart_Pricing","Smart pricing",spn)}</div>` + roster;
+    <div class="sec"><h2>Mix · special nurse</h2><p>${spn.length} patients</p></div><div class="two">${dist("Sales_Channel","Sales channel",spn)}${dist("Smart_Pricing","Smart pricing",spn)}</div>` + dxAnalysis(all, daysIn) + roster;
 }
 
 /* daily trend of ER, ambulatory and assessment visits and their conversion to INP (every occupancy report) */
@@ -2576,7 +2584,7 @@ function stakeItemsAll(){
 /* the data as it stood at the end of month m (everything after it hidden), so every line can be worked out month by month */
 function dbUpTo(m){ const o={}; for (const [k,v] of Object.entries(DB)){ if(!Array.isArray(v)||!v.length||typeof v[0]!=="object"){ o[k]=v; continue; }
     const r0=v[0]; o[k]= ("Month" in r0) ? v.filter(r=>!r.Month||r.Month<=m) : ("Date" in r0) ? v.filter(r=>!r.Date||cycleKey(parseDate(r.Date))<=m) : v; } return o; }
-const STAKE_DROP=["Commercial revenue gap to MTD target","Leads lost at the hotline or cancelled","Empty beds below the occupancy target","Cases below their MTD target","Ambulatory patients not converted to INP"];
+const STAKE_DROP=["Commercial revenue gap to MTD target","Leads lost at the hotline or cancelled","Empty beds below the occupancy target","Cases below their MTD target","Services below their benchmark"];
 const stakeGrp = i => (i.src==="Commercial"||/^Commercial/.test(i.k)) ? "Sales & Marketing" : "Operation";
 const stakeName = k => k.replace(/^Commercial:\s*/,"").replace(/^Commercial revenue gap to MTD target$/,"Revenue gap to the target (no patient-flow targets this month)");
 function stakeAt(m){ const kDB=DB, kf=state.from, kt=state.to, ko=state.odate; DB=dbUpTo(m); state.from=state.to=m;
@@ -4067,7 +4075,8 @@ function drepData(){
       const by=new Map(); rs.forEach(r=>{ const k=(r.Region||"")+"|"+(r.Line||"Family medicine"); if(!by.has(k)) by.set(k,[]); by.get(k).push(r); });
       return [...by.entries()].map(([k,L])=>{ const [Region,who]=k.split("|"), a=sum(L,"Value_Actual"), t=sum(L,"Value_Target"), f=sum(L,"Full_Value_Target")||t;
         const accs=L.map(r=>({acc:r.Doctor,a:r.Value_Actual||0,t:r.Value_Target||0,last:null})).filter(x=>x.t>x.a).sort((x,y)=>(y.t-y.a)-(x.t-x.a)).slice(0,5);
-        return {who,Region,a,t,f,p:t?a/t:null,accN:L.length,active:L.filter(r=>r.Value_Actual>0).length,accs}; }).sort((x,y)=>(x.p??9)-(y.p??9));
+        const people=[...new Set(L.map(r=>String(r.Doctor||"").trim()).filter(Boolean))].join(" · ");
+        return {who,people,Region,a,t,f,p:t?a/t:null,accN:L.length,active:L.filter(r=>r.Value_Actual>0).length,accs}; }).sort((x,y)=>(x.p??9)-(y.p??9));
     }
     const rs=(DB.Accounts||[]).filter(r=>r.Month===m&&r.Channel===ch); if(!rs.length) return null;
     return repList(rs).map(r=>{ const accs=r.rows.map(x=>{ const a=(x.OPD_Val_Actual||0)+(x.INP_Val_Actual||0), t=(x.OPD_Val_Target||0)+(x.INP_Val_Target||0); return {acc:x.Account,a,t,last:lastRev(x.Account,x.Region)}; })
@@ -4112,8 +4121,8 @@ function drepBuild(m){
     return `<div class="sec"><h2>${ttl}</h2></div><div class="panel tbl-wrap"><table><thead><tr><th></th><th>Revenue vs MTD target</th><th>Achieved</th><th>Expected closing revenue</th><th>INP revenue</th><th>Ambulatory revenue</th><th>INP admissions</th><th>ICU</th><th>ER</th></tr></thead><tbody>
       ${r("<b>Total</b>",D.tot||D.group)}${(D.cities||[]).map(x=>r(x.name==="Cairo"?"Cairo <span class='of'>(New Cairo + Mohandessen)</span>":x.name,x)).join("")}</tbody></table></div>`; };
   const teamTables=C=>{ if(!C.team||!C.team.length) return `<div class="panel empty">No ${C.ch==="Family Medicine"?"family-medicine lines":"salespeople"} entered for ${monthLabel(m)} yet.</div>`;
-    const prevM=drepPrev; let h=`<div class="sec"><h2>${C.ch==="Family Medicine"?"Family-medicine lines":"Salespeople"} · lowest achievement first</h2></div><div class="panel tbl-wrap"><table><thead><tr><th>Name</th><th>City</th><th>Achieved vs MTD target</th><th>Achieved</th><th>Month target</th><th>Active accounts</th><th>Status</th></tr></thead><tbody>
-      ${C.team.map(r=>`<tr><td class="l name">${esc(r.who)}</td><td>${esc(r.Region)}</td><td class="num"><b class="ach">${fmt(r.a)}</b> <span class="of">/ ${fmt(r.t)}</span>${bar(r.a,r.t)}</td><td>${chip(r.p)}</td><td class="num">${fmt(r.f)}</td><td class="num">${r.active} / ${r.accN}</td><td>${r.p!=null&&r.p<0.8?'<span class="chip red">Below target</span>':'<span class="chip green">On track</span>'}</td></tr>`).join("")}</tbody></table></div>`;
+    const prevM=drepPrev; let h=`<div class="sec"><h2>${C.ch==="Family Medicine"?"Family-medicine lines":"Salespeople"} · lowest achievement first</h2></div><div class="panel tbl-wrap"><table><thead><tr><th>${C.ch==="Family Medicine"?"Line · who works it":"Name"}</th><th>City</th><th>Achieved vs MTD target</th><th>Achieved</th><th>Month target</th><th>Active accounts</th><th>Status</th></tr></thead><tbody>
+      ${C.team.map(r=>`<tr><td class="l name">${esc(r.who)}${r.people?`<div class="tgt2" dir="auto" style="font-weight:500">${esc(r.people)}</div>`:""}</td><td>${esc(r.Region)}</td><td class="num"><b class="ach">${fmt(r.a)}</b> <span class="of">/ ${fmt(r.t)}</span>${bar(r.a,r.t)}</td><td>${chip(r.p)}</td><td class="num">${fmt(r.f)}</td><td class="num">${r.active} / ${r.accN}</td><td>${r.p!=null&&r.p<0.8?'<span class="chip red">Below target</span>':'<span class="chip green">On track</span>'}</td></tr>`).join("")}</tbody></table></div>`;
     const low=C.team.filter(r=>r.p!=null&&r.p<0.8&&r.accs.length);
     if (low.length) h+=`<div class="sec"><h2>Accounts holding them back</h2><p>Largest gap to the MTD target</p></div><div class="panel tbl-wrap"><table><thead><tr><th>Salesperson</th><th>Account</th><th>Achieved</th><th>MTD target</th><th>Gap</th><th>${prevM?mShort(prevM):"Last month"}</th><th>Note</th></tr></thead><tbody>
       ${low.flatMap(r=>r.accs.map(a=>`<tr><td class="l name">${esc(r.who)}</td><td dir="auto">${esc(a.acc)}</td><td class="num">${fmt(a.a)}</td><td class="num">${fmt(a.t)}</td><td class="num"><b style="color:var(--red)">${fmt(a.t-a.a)}</b></td><td class="num">${a.last==null?"—":fmt(a.last)}</td><td>${a.a===0?(a.last?"No activity this month (had activity last month)":"No activity this month"):""}</td></tr>`)).join("")}</tbody></table></div>`;
@@ -4140,7 +4149,7 @@ function drepBuild(m){
     }
     state.unit="All"; reb();
     // 3 · every sales channel on its own pages
-    const D=drepData(); const order=[...D.channels.filter(c=>c.ch==="Digital-Pure"),...DREP_BD.map(b=>D.channels.find(c=>c.ch===b)).filter(Boolean),...D.channels.filter(c=>c.ch!=="Digital-Pure"&&!DREP_BD.includes(c.ch))];
+    const D=drepData(); const order=[...DREP_BD.map(b=>D.channels.find(c=>c.ch===b)).filter(Boolean),...D.channels.filter(c=>c.ch!=="Digital-Pure"&&!DREP_BD.includes(c.ch))];
     for (const C of order){
       state.hch=C.ch;
       body+=`<div class="pbreak"><div class="rtitle">${esc(C.ch)}<small>${C.ch==="Digital-Pure"?"Digital unit":C.bd?"Business Development unit":"Other channel"} · ${monthLabel(m)}</small></div>
@@ -4196,7 +4205,7 @@ async function drepXlsx(){
   D.channels.forEach(C=>C.hist.forEach(h=>hRows.push([C.ch,h.label,...h.vals.map(v=>Math.round(v)),h.cur==null?null:Math.round(h.cur),r2(h.vsLast),r2(h.vs3),h.verdict])));
   const tRows=[["Channel","Name","City","Achieved","MTD target","Achieved %","Month target","Active accounts","Accounts","Status"]];
   const aRows=[["Channel","Salesperson","City","Account","Achieved","MTD target","Gap",D.prevM?monthLabel(D.prevM):"Last month","Note"]];
-  D.channels.filter(C=>C.team).forEach(C=>C.team.forEach(r=>{ tRows.push([C.ch,r.who,r.Region,r.a,Math.round(r.t),r2(r.p),r.f,r.active,r.accN,r.p!=null&&r.p<0.8?"Below target":"On track"]);
+  D.channels.filter(C=>C.team).forEach(C=>C.team.forEach(r=>{ tRows.push([C.ch,r.people?`${r.who} · ${r.people}`:r.who,r.Region,r.a,Math.round(r.t),r2(r.p),r.f,r.active,r.accN,r.p!=null&&r.p<0.8?"Below target":"On track"]);
     if (r.p!=null&&r.p<0.8) r.accs.forEach(a=>aRows.push([C.ch,r.who,r.Region,a.acc,a.a,Math.round(a.t),Math.round(a.t-a.a),a.last,a.a===0?(a.last?"No activity this month (had activity last month)":"No activity this month"):""])); }));
   const wb=X.utils.book_new(), add=(rows,name,widths,hr=0)=>{ const ws=X.utils.aoa_to_sheet(rows); ws["!cols"]=widths.map(w=>({wch:w}));
     const head=rows[hr]||[];   // number formats: % columns as percentages, the rest with thousands separators
@@ -4205,6 +4214,37 @@ async function drepXlsx(){
   add(sum1,"Summary",[14,16,...Array(17).fill(13)],6); add(chRows,"Channels",[14,30,...Array(17).fill(13)]); add(hRows,"History",[16,18,...Array(14).fill(12)]);
   add(tRows,"BD salespeople",[16,24,10,12,12,11,12,10,9,13]); add(aRows,"BD accounts",[16,22,10,34,12,12,12,12,40]);
   X.writeFile(wb,`CareHub_Commercial_daily_${D.asof||D.m}.xlsx`);
+}
+
+/* ---------- Occupancy · diagnosis analysis (free text → conditions; one patient can have several) ---------- */
+const DX_TERMS = [
+  ["Septic shock / sepsis",/septic|sepsis|urosepsis/i],["Pneumonia / chest infection",/pneumon|chest infection|lrti|aspiration/i],["UTI",/\buti\b|urinary tract/i],
+  ["AKI / renal failure",/\baki\b|renal|kidney|ckd|esrd|dialysis/i],["Pulmonary edema",/pulmonary o?edema/i],["Pulmonary embolism / DVT",/pulmonary embol|\bpe\b|\bdvt\b|thrombo/i],
+  ["Cancer / leukemia",/cancer|malignan|tumou?r|leuk|lymphom|carcinom|metasta|oncolog/i],["Stroke / CVA",/stroke|\bcva\b|infarct|hemipleg|cerebral/i],
+  ["Heart failure / cardiac",/heart failure|\bhf\b|cardiac|\bmi\b|arrhythm|\baf\b|ischemic heart|ihd/i],["COPD / respiratory failure",/copd|respiratory failure|asthma|ards|ventilat/i],
+  ["GIT bleeding",/git bleed|gi bleed|haematemesis|hematemesis|melena/i],["Anemia",/an(a)?emia/i],["Shock (hypovolemic / other)",/hypovolemic|cardiogenic shock|(?<!septic )shock/i],
+  ["Disturbed consciousness",/\bdcl\b|disturbed conscious|coma/i],["Fits / seizures",/fits|seizure|convuls|epilep/i],["Dehydration / electrolytes",/dehydrat|electrolyte|hypona|hyperka|hypoka/i],
+  ["Cellulitis / wound / bed sore",/cellulitis|wound|bed ?sore|ulcer|abscess|gangren/i],["Fracture / orthopedic",/fracture|orthop|hip|femur/i],["Liver disease",/liver|hepat|cirrho|encephalopathy/i],
+  ["Diabetes complications",/\bdka\b|diabet|hyperglyc|hypoglyc/i],["End stage / palliative",/end stage|palliat|terminal/i],["Extended care",/extended care/i]];
+function dxConditions(text){ const s=String(text||"").trim(); if(!s) return [];
+  const hits=DX_TERMS.filter(([,re])=>re.test(s)).map(([n])=>n);
+  if (hits.length) return [...new Set(hits)];
+  return [s.split(/[,،+\/]| and /i)[0].trim().replace(/^\w/,c=>c.toUpperCase()) || "Other"]; }
+function dxAnalysis(P, daysIn){
+  const withDx=P.filter(p=>String(p.Diagnosis||"").trim()), none=P.length-withDx.length;
+  if (!withDx.length) return `<div class="sec"><h2>Diagnosis analysis</h2></div><div class="panel empty">No diagnosis recorded yet for these patients (column Diagnosis in Occ_Patients).</div>`;
+  const g=new Map(); withDx.forEach(p=>dxConditions(p.Diagnosis).forEach(c=>{ if(!g.has(c)) g.set(c,[]); g.get(c).push(p); }));
+  const rows=[...g.entries()].map(([c,L])=>({c,L,n:L.length})).sort((a,b)=>b.n-a.n);
+  const mx=Math.max(1,...rows.map(r=>r.n)), lv=Object.keys(LV_COLOR), bus=BU_ORDER.filter(b=>P.some(p=>p.BU===b));
+  const avgDays=L=>{ const d=L.map(daysIn).filter(x=>x!=null); return d.length?Math.round(d.reduce((a,b)=>a+b,0)/d.length):null; };
+  const tbl=`<div class="panel tbl-wrap"><table><thead><tr><th>Condition</th><th>Patients</th><th>Share</th>${lv.map(l=>`<th>${l.replace(" General","")}</th>`).join("")}${bus.map(b=>`<th>${b}</th>`).join("")}<th>Avg days in care</th><th>Longest</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr class="click" data-dx="${esc(r.c)}" title="Show these patients in the list below"><td class="l name">${esc(r.c)}</td>
+      <td class="barcell"><b class="ach num">${r.n}</b><div class="mbar" style="max-width:120px"><i style="width:${r.n/mx*100}%;background:var(--navy)"></i></div></td><td class="num">${share(r.n,withDx.length)}</td>
+      ${lv.map(l=>{const k=r.L.filter(p=>p.Level===l).length; return `<td class="num">${k||'<span class="of">·</span>'}</td>`;}).join("")}
+      ${bus.map(b=>{const k=r.L.filter(p=>p.BU===b).length; return `<td class="num">${k||'<span class="of">·</span>'}</td>`;}).join("")}
+      <td class="num">${avgDays(r.L)??"—"}</td><td class="num">${(()=>{const d=r.L.map(daysIn).filter(x=>x!=null); return d.length?Math.max(...d):"—";})()}</td></tr>`).join("")}
+    <tr class="total"><td class="l">Patients with a diagnosis</td><td class="num">${withDx.length}</td><td class="num">100%</td>${lv.map(l=>`<td class="num">${withDx.filter(p=>p.Level===l).length}</td>`).join("")}${bus.map(b=>`<td class="num">${withDx.filter(p=>p.BU===b).length}</td>`).join("")}<td class="num">${avgDays(withDx)??"—"}</td><td></td></tr></tbody></table></div>`;
+  return `<div class="sec"><h2>Diagnosis analysis</h2><p>${withDx.length} of ${P.length} patients have a diagnosis${none?` · ${none} not recorded`:""} · a patient can count under more than one condition · click a row to list its patients</p></div>${tbl}`;
 }
 
 /* ---------- Overview ---------- */
@@ -4265,6 +4305,21 @@ function overview(){
     <div class="v num">${m?fmtC(a):fmtV(a)} ${chip(ratio(a,t))}</div><div class="t num">MTD target ${m?fmtC(t):fmtV1(t)} · Target ${m?fmtC(full):fmtV1(full)}</div>${bar(a,t,exp)}</div>`).join("")}</div>`;
 
   const busNames = uniq(allBU,"BU");
+  // Cairo as one unit (New Cairo + Mohandessen) next to Alex
+  const cityCard=(city)=>{ const rs=allBU.filter(r=>areaOf(r.BU)===city); if(!rs.length) return ""; const x=buAgg(rs), rp=ratio(x.Rev_Actual,x.Rev_Target), fb=fcRevOf(rs), brs=BU_ORDER.filter(b=>rs.some(r=>r.BU===b));
+    const line=(lab,a,m,f)=>`<dt>${lab}</dt><dd><b class="ach">${fmtV(a)}</b> <span class="of">/ ${fmtV1(m)} MTD · ${fmtV1(f)} target</span> ${chip(ratio(a,m))}</dd>`;
+    const split=brs.length>1?`<div class="csplit"><div class="cst">By branch</div><table><thead><tr><th>Branch</th><th>Revenue vs MTD</th><th>Achieved</th><th>Expected</th><th>Share</th></tr></thead><tbody>
+      ${brs.map(b=>{ const r2=rs.filter(r=>r.BU===b), y=buAgg(r2), e=fcRevOf(r2); return `<tr><td class="l name">${b}</td><td class="num"><b class="ach">${fmt(y.Rev_Actual)}</b> <span class="of">/ ${fmt(y.Rev_Target)}</span>${bar(y.Rev_Actual,y.Rev_Target,exp)}</td><td>${chip(ratio(y.Rev_Actual,y.Rev_Target))}</td><td class="num">${e!=null?`${fmtC(e)} ${chip(ratio(e,y.Full_Rev_Target))}`:"—"}</td><td class="num">${share(y.Rev_Actual,x.Rev_Actual)}</td></tr>`; }).join("")}</tbody></table></div>`:"";
+    return `<div class="panel bu city click" data-city="${city}" style="cursor:pointer;${brs.length>1?"grid-column:span 2":""}" title="Show only ${city} in every dashboard">
+      <header><b>${city}${brs.length>1?` <span class="of" style="font-weight:500">· ${brs.join(" + ")}</span>`:""}</b>${chip(rp)}</header>
+      <div class="rev num"><b class="ach big">${fmt(x.Rev_Actual)}</b> <span class="of">of ${fmt(x.Rev_Target)} MTD · Target ${fmt(x.Full_Rev_Target)}</span></div>${bar(x.Rev_Actual,x.Rev_Target,exp)}
+      ${fb?`<div class="fcline">Expected closing revenue <b>${fmtC(fb)}</b> ${chip(ratio(fb,x.Full_Rev_Target))} <span class="of">of target · left to target ${fmtC(Math.max(x.Full_Rev_Target-x.Rev_Actual,0))}</span></div>`:""}
+      <div class="${brs.length>1?"cgrid":""}"><dl class="num">
+        <dt>INP revenue</dt><dd><b class="ach">${fmtC(x.INP_Rev_Actual)}</b> <span class="of">/ ${fmtC(x.INP_Rev_Target)} MTD</span> ${chip(ratio(x.INP_Rev_Actual,x.INP_Rev_Target))}</dd>
+        <dt>Ambulatory revenue</dt><dd><b class="ach">${fmtC(x.AMB_Rev_Actual)}</b> <span class="of">/ ${fmtC(x.AMB_Rev_Target)} MTD</span> ${chip(ratio(x.AMB_Rev_Actual,x.AMB_Rev_Target))}</dd>
+        ${line("INP admissions",x.INP_Vol_Actual,x.INP_Vol_Target,x.Full_INP_Vol_Target)}${line("ICU cases",x.ICU_Actual,x.ICU_Target,x.Full_ICU_Target)}${line("ER requests",x.ER_Actual,x.ER_Target,x.Full_ER_Target)}</dl>${split}</div></div>`; };
+  const cityCards=["Cairo","Alex"].map(cityCard).filter(Boolean);
+  const cities = state.bu==="All" && cityCards.length ? `<div class="sec"><h2>Cairo and Alex</h2><p>Cairo = New Cairo + Mohandessen · click a city to show only it everywhere</p></div><div class="bus">${cityCards.join("")}</div>` : "";
   const bus = `<div class="sec"><h2>Business units</h2><p>Click a unit to focus the page on it</p></div>
    <div class="bus">${busNames.map(b=>{const x=buAgg(allBU.filter(r=>r.BU===b));const rp=ratio(x.Rev_Actual,x.Rev_Target);
     return `<div class="panel bu click" data-bu="${esc(b)}" style="cursor:pointer;${state.bu===b?"outline:2px solid var(--gold)":""}">
@@ -4293,7 +4348,7 @@ function overview(){
   const FS = state.from===state.to && state.bu==="All" ? flowStatus(state.to, "All") : null;   // company-level targets
   const flow = FS ? `<div class="sec"><h2>Patients brought by each channel vs target</h2><p>ER, ambulatory and assessment visits · ${monthLabel(FS.month)} to ${dShort(parseDate(FS.asof))}</p></div>${flowTable(FS)}` : "";
   const drepBar = state.from===state.to ? `<div class="drepbar"><span>Daily report · ${monthLabel(state.to)}</span><button class="btn" data-drep="pdf">⬇ PDF</button><button class="btn" data-drep="xlsx">⬇ Excel</button></div>` : "";
-  return drepBar + covNote(DB.BU_Channel||[]) + inpOnlyNote(rows) + hero + fcCommercial(rows) + kpis + bus + channels + chOverviewBlock() + flow;
+  return drepBar + covNote(DB.BU_Channel||[]) + inpOnlyNote(rows) + hero + fcCommercial(rows) + kpis + cities + bus + channels + chOverviewBlock() + flow;
 }
 
 /* ---------- Sales team ---------- */
@@ -4627,6 +4682,9 @@ document.addEventListener("click", e=>{
   if (e.target.closest("[data-go-ops-ch]")){ state.chm=opsMonths().includes(state.to)?state.to:null; state.chSel=state.bu!=="All"?state.bu:null; goPage("ops_ch"); return; }
   const stm = e.target.closest("[data-stm]"); if (stm){ state.iafrom=state.iato=stm.dataset.stm; renderChrome(); render(); return; }
   const drep = e.target.closest("[data-drep]"); if (drep){ drep.dataset.drep==="pdf" ? drepPdf() : drepXlsx(); return; }
+  if (e.target.closest("[data-dxclear]")){ state.oqDx=null; render(); return; }
+  const dxr = e.target.closest("[data-dx]"); if (dxr){ const term=DX_TERMS.find(([n])=>n===dxr.dataset.dx); state.oqDx=dxr.dataset.dx; state.oq=""; render(); setTimeout(()=>document.getElementById("roster")?.scrollIntoView({behavior:"smooth"}),50); return; }
+  const cty = e.target.closest("[data-city]"); if (cty && !e.target.closest("a")){ state.city=cty.dataset.city; try{ localStorage.setItem("carehub_gf", JSON.stringify({city:state.city,unit:state.unit})); }catch(_){} applyGlobal(); return; }
   const ltk = e.target.closest("[data-ltk]"); if (ltk){ state.ltk=ltk.dataset.ltk; render(); return; }
   const ldd = e.target.closest("[data-ldd]"); if (ldd){ state.ldd=ldd.dataset.ldd; render(); renderChrome(); return; }
   const svk = e.target.closest("[data-svk]"); if (svk){ state.svk=svk.dataset.svk; render(); return; }
